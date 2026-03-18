@@ -1,0 +1,97 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+clawhost
+clawhost_*
+migrate-tool
+seed-tool
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Dependency directories
+vendor/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Log files
+*.log
+logs/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Build artifacts
+build/
+dist/
+tmp/
+
+# Docker volumes
+postgres_data/
+
+# Air (hot reload) temporary files
+tmp/
+air_tmp/
+
+# Documentation build
+docs/_build/
+docs/site/
+
+# Coverage reports
+coverage.html
+coverage.out
+
+# Certificates
+*.pem
+*.key
+*.crt
+*.p12
+
+# Backup files
+*.backup
+*.bak
+*.sql.gz
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Node.js (for future frontend)
+node_modules/
+.next/
+.nuxt/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

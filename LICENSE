@@ -1,0 +1,66 @@
+ClawHost - Dual License
+
+This project uses a dual licensing model:
+
+## Open Source Components (core/ directory)
+
+The ClawHost Core (everything in the core/ directory) is licensed under the MIT License.
+
+Copyright (c) 2026 ClawHost Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+## Commercial Components (hosting-service/ directory)
+
+The ClawHost Commercial Service (everything in the hosting-service/ directory) 
+is proprietary software owned by ClawHost Inc.
+
+All rights reserved. Redistribution and use in source and binary forms, with 
+or without modification, are not permitted without written permission from 
+ClawHost Inc.
+
+For commercial licensing inquiries, contact: licensing@clawhost.com
+
+## Files and Directories
+
+- core/                    - MIT Licensed (Open Source)
+- examples/               - MIT Licensed (Open Source)  
+- docs/                   - MIT Licensed (Open Source)
+- community/              - MIT Licensed (Open Source)
+- hosting-service/        - Proprietary (Commercial License Required)
+- .github/                - MIT Licensed (Open Source)
+- README.md               - MIT Licensed (Open Source)
+- docker-compose.yml      - MIT Licensed (Open Source)
+- Dockerfile              - MIT Licensed (Open Source)
+
+## Summary
+
+You are free to:
+- Use, modify, and distribute the ClawHost Core (core/)
+- Build your own hosting service using the core
+- Contribute to the open source components
+- Create commercial products using the open source core
+
+You may not:
+- Use, modify, or distribute the commercial hosting service code
+- Claim ownership of the ClawHost trademark or branding
+- Use the commercial service code without proper licensing
+
+For questions about licensing, see our FAQ at:
+https://clawhost.com/licensing-faq
