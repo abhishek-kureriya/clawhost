@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -25,16 +26,31 @@ type deploymentState struct {
 }
 
 type deployment struct {
-	Name       string    `json:"name"`
-	Provider   string    `json:"provider"`
-	ServerID   string    `json:"server_id"`
-	PublicIP   string    `json:"public_ip"`
-	Status     string    `json:"status"`
-	ServerType string    `json:"server_type"`
-	Location   string    `json:"location"`
-	Version    string    `json:"version"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	Name             string    `json:"name"`
+	Provider         string    `json:"provider"`
+	ServerID         string    `json:"server_id"`
+	PublicIP         string    `json:"public_ip"`
+	Status           string    `json:"status"`
+	ServerType       string    `json:"server_type"`
+	Location         string    `json:"location"`
+	Version          string    `json:"version"`
+	APIURL           string    `json:"api_url,omitempty"`
+	OpenClawURL      string    `json:"openclaw_url,omitempty"`
+	OpenClawStartCmd string    `json:"openclaw_start_cmd,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+}
+
+type cliConfig struct {
+	Name             string
+	Provider         string
+	ServerType       string
+	Location         string
+	LLMProvider      string
+	LLMModel         string
+	APIURL           string
+	OpenClawURL      string
+	OpenClawStartCmd string
 }
 
 func runCLI(args []string) error {
@@ -95,6 +111,8 @@ func runInit(args []string) error {
 	llmProvider := fs.String("llm-provider", "openai", "LLM provider")
 	llmModel := fs.String("llm-model", "gpt-4o-mini", "LLM model")
 	apiURL := fs.String("api-url", "http://localhost:8080", "Local ClawHost API URL")
+	openclawURL := fs.String("openclaw-url", "http://localhost:3000", "Local OpenClaw URL")
+	openclawStartCmd := fs.String("openclaw-start-cmd", "", "Command to start local OpenClaw agent (optional)")
 	interactive := fs.Bool("interactive", true, "Run interactive setup wizard")
 	overwrite := fs.Bool("overwrite", false, "Overwrite existing config file")
 	if err := fs.Parse(args); err != nil {
@@ -115,6 +133,8 @@ func runInit(args []string) error {
 		*llmProvider = prompt(reader, "LLM provider", *llmProvider)
 		*llmModel = prompt(reader, "LLM model", *llmModel)
 		*apiURL = prompt(reader, "Local API URL", *apiURL)
+		*openclawURL = prompt(reader, "OpenClaw URL", *openclawURL)
+		*openclawStartCmd = prompt(reader, "OpenClaw start command (optional)", *openclawStartCmd)
 	}
 
 	configPath := ".clawhost.yaml"
@@ -122,57 +142,9 @@ func runInit(args []string) error {
 		return fmt.Errorf("%s already exists (use --overwrite)", configPath)
 	}
 
-	config := fmt.Sprintf("name: %s\nprovider: %s\nserver_type: %s\nlocation: %s\nllm_provider: %s\nllm_model: %s\napi_url: %s\n", *name, *provider, *serverType, *location, *llmProvider, *llmModel, *apiURL)
+	config := fmt.Sprintf("name: %s\nprovider: %s\nserver_type: %s\nlocation: %s\nllm_provider: %s\nllm_model: %s\napi_url: %s\nopenclaw_url: %s\nopenclaw_start_cmd: %s\n", *name, *provider, *serverType, *location, *llmProvider, *llmModel, *apiURL, *openclawURL, *openclawStartCmd)
 	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
 		return fmt.Errorf("write config: %w", err)
-	}
-
-	state, err := loadState()
-	if err != nil {
-		return err
-	}
-	if _, ok := state.Deployments[*name]; !ok {
-		now := time.Now().UTC()
-		state.Deployments[*name] = deployment{
-			Name:       *name,
-			Provider:   *provider,
-			ServerID:   "local-" + *name,
-			PublicIP:   "127.0.0.1",
-			ServerType: *serverType,
-			Location:   *location,
-			Status:     "initialized",
-			Version:    "openclaw-latest",
-			CreatedAt:  now,
-			UpdatedAt:  now,
-		}
-		if err := saveState(state); err != nil {
-			return err
-		}
-	}
-
-	fmt.Printf("✅ Initialized deployment profile %q\n", *name)
-	fmt.Printf("Config written to %s\n", configPath)
-	return nil
-}
-
-func runDeploy(args []string) error {
-	fs := flag.NewFlagSet("deploy", flag.ContinueOnError)
-	name := fs.String("name", "default", "Deployment name")
-	apiURL := fs.String("api-url", "http://localhost:8080", "Local ClawHost Core API URL")
-	openclawURL := fs.String("openclaw-url", "http://localhost:3000", "Local OpenClaw URL")
-	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
-		}
-		return err
-	}
-
-	coreHealthy := false
-	if resp, err := http.Get(strings.TrimRight(*apiURL, "/") + "/health"); err == nil {
-		_ = resp.Body.Close()
-		if resp.StatusCode < http.StatusBadRequest {
-			coreHealthy = true
-		}
 	}
 
 	state, err := loadState()
@@ -184,21 +156,111 @@ func runDeploy(args []string) error {
 	if prev, ok := state.Deployments[*name]; ok && !prev.CreatedAt.IsZero() {
 		createdAt = prev.CreatedAt
 	}
-	status := "local-configured"
-	if coreHealthy {
-		status = "running"
-	}
 	state.Deployments[*name] = deployment{
-		Name:       *name,
-		Provider:   "local",
-		ServerID:   "local-" + *name,
-		PublicIP:   "127.0.0.1",
-		Status:     status,
-		ServerType: "local",
-		Location:   "localhost",
-		Version:    "openclaw-latest",
-		CreatedAt:  createdAt,
-		UpdatedAt:  now,
+		Name:             *name,
+		Provider:         *provider,
+		ServerID:         "local-" + *name,
+		PublicIP:         "127.0.0.1",
+		ServerType:       *serverType,
+		Location:         *location,
+		Status:           "initialized",
+		Version:          "openclaw-latest",
+		APIURL:           *apiURL,
+		OpenClawURL:      *openclawURL,
+		OpenClawStartCmd: *openclawStartCmd,
+		CreatedAt:        createdAt,
+		UpdatedAt:        now,
+	}
+	if err := saveState(state); err != nil {
+		return err
+	}
+
+	fmt.Printf("✅ Initialized deployment profile %q\n", *name)
+	fmt.Printf("Config written to %s\n", configPath)
+	return nil
+}
+
+func runDeploy(args []string) error {
+	fs := flag.NewFlagSet("deploy", flag.ContinueOnError)
+	name := fs.String("name", "default", "Deployment name")
+	apiURL := fs.String("api-url", "", "Local ClawHost Core API URL")
+	openclawURL := fs.String("openclaw-url", "", "Local OpenClaw URL")
+	startCmd := fs.String("start-cmd", "", "Command to start OpenClaw before health check")
+	timeout := fs.Duration("timeout", 60*time.Second, "Max wait for OpenClaw /health")
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+
+	cfg := loadCLIConfig()
+	if strings.TrimSpace(*apiURL) == "" {
+		*apiURL = cfg.APIURL
+	}
+	if strings.TrimSpace(*apiURL) == "" {
+		*apiURL = "http://localhost:8080"
+	}
+	if strings.TrimSpace(*openclawURL) == "" {
+		*openclawURL = cfg.OpenClawURL
+	}
+	if strings.TrimSpace(*openclawURL) == "" {
+		*openclawURL = "http://localhost:3000"
+	}
+	if strings.TrimSpace(*startCmd) == "" {
+		*startCmd = cfg.OpenClawStartCmd
+	}
+
+	coreHealthy := false
+	if resp, err := http.Get(strings.TrimRight(*apiURL, "/") + "/health"); err == nil {
+		_ = resp.Body.Close()
+		if resp.StatusCode < http.StatusBadRequest {
+			coreHealthy = true
+		}
+	}
+	if !coreHealthy {
+		return fmt.Errorf("core API not reachable at %s (start core first with ./clawhost or make run-core)", *apiURL)
+	}
+
+	if strings.TrimSpace(*startCmd) != "" {
+		fmt.Printf("▶ Starting OpenClaw with command: %s\n", *startCmd)
+		cmd := exec.Command("sh", "-lc", *startCmd)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("openclaw start command failed: %w", err)
+		}
+	}
+
+	openclawHealthy := waitForHealthyEndpoint(strings.TrimRight(*openclawURL, "/")+"/health", *timeout)
+	if !openclawHealthy {
+		return fmt.Errorf("OpenClaw not reachable at %s/health after %s", strings.TrimRight(*openclawURL, "/"), timeout.String())
+	}
+
+	state, err := loadState()
+	if err != nil {
+		return err
+	}
+	now := time.Now().UTC()
+	createdAt := now
+	if prev, ok := state.Deployments[*name]; ok && !prev.CreatedAt.IsZero() {
+		createdAt = prev.CreatedAt
+	}
+	status := "running"
+	state.Deployments[*name] = deployment{
+		Name:             *name,
+		Provider:         "local",
+		ServerID:         "local-" + *name,
+		PublicIP:         "127.0.0.1",
+		Status:           status,
+		ServerType:       "local",
+		Location:         "localhost",
+		Version:          "openclaw-latest",
+		APIURL:           *apiURL,
+		OpenClawURL:      *openclawURL,
+		OpenClawStartCmd: *startCmd,
+		CreatedAt:        createdAt,
+		UpdatedAt:        now,
 	}
 	if err := saveState(state); err != nil {
 		return err
@@ -208,9 +270,7 @@ func runDeploy(args []string) error {
 	fmt.Printf("Core API: %s\n", *apiURL)
 	fmt.Printf("OpenClaw URL: %s\n", *openclawURL)
 	fmt.Printf("Status: %s\n", status)
-	if !coreHealthy {
-		fmt.Println("Tip: Start core with `./clawhost` or `make run-core`.")
-	}
+	fmt.Println("✅ OpenClaw handshake successful")
 	return nil
 }
 
@@ -524,31 +584,126 @@ func refreshLocalDeploymentStatus(d deployment) deployment {
 		return d
 	}
 
-	apiURL := "http://localhost:8080"
-	if content, readErr := os.ReadFile(".clawhost.yaml"); readErr == nil {
-		for _, line := range strings.Split(string(content), "\n") {
-			if strings.HasPrefix(strings.TrimSpace(line), "api_url:") {
-				parts := strings.SplitN(line, ":", 2)
-				if len(parts) == 2 {
-					apiURL = strings.TrimSpace(parts[1])
-				}
-			}
-		}
+	cfg := loadCLIConfig()
+	apiURL := strings.TrimSpace(d.APIURL)
+	if apiURL == "" {
+		apiURL = cfg.APIURL
+	}
+	if apiURL == "" {
+		apiURL = "http://localhost:8080"
+	}
+	openclawURL := strings.TrimSpace(d.OpenClawURL)
+	if openclawURL == "" {
+		openclawURL = cfg.OpenClawURL
+	}
+	if openclawURL == "" {
+		openclawURL = "http://localhost:3000"
 	}
 
+	coreHealthy := false
 	if resp, reqErr := http.Get(strings.TrimRight(apiURL, "/") + "/health"); reqErr == nil {
 		_ = resp.Body.Close()
 		if resp.StatusCode < http.StatusBadRequest {
-			d.Status = "running"
-		} else {
-			d.Status = "local-configured"
+			coreHealthy = true
 		}
-	} else {
+	}
+
+	openclawHealthy := false
+	if resp, reqErr := http.Get(strings.TrimRight(openclawURL, "/") + "/health"); reqErr == nil {
+		_ = resp.Body.Close()
+		if resp.StatusCode < http.StatusBadRequest {
+			openclawHealthy = true
+		}
+	}
+
+	switch {
+	case coreHealthy && openclawHealthy:
+		d.Status = "running"
+	case coreHealthy && !openclawHealthy:
+		d.Status = "core-running-openclaw-down"
+	case !coreHealthy && openclawHealthy:
+		d.Status = "openclaw-running-core-down"
+	default:
 		d.Status = "local-configured"
 	}
 
+	d.APIURL = apiURL
+	d.OpenClawURL = openclawURL
+
 	d.UpdatedAt = time.Now().UTC()
 	return d
+}
+
+func loadCLIConfig() cliConfig {
+	config := cliConfig{
+		Name:        "default",
+		Provider:    "local",
+		ServerType:  "local",
+		Location:    "localhost",
+		LLMProvider: "openai",
+		LLMModel:    "gpt-4o-mini",
+		APIURL:      "http://localhost:8080",
+		OpenClawURL: "http://localhost:3000",
+	}
+
+	content, err := os.ReadFile(".clawhost.yaml")
+	if err != nil {
+		return config
+	}
+
+	for _, line := range strings.Split(string(content), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") || !strings.Contains(trimmed, ":") {
+			continue
+		}
+		parts := strings.SplitN(trimmed, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		switch key {
+		case "name":
+			config.Name = value
+		case "provider":
+			config.Provider = value
+		case "server_type":
+			config.ServerType = value
+		case "location":
+			config.Location = value
+		case "llm_provider":
+			config.LLMProvider = value
+		case "llm_model":
+			config.LLMModel = value
+		case "api_url":
+			config.APIURL = value
+		case "openclaw_url":
+			config.OpenClawURL = value
+		case "openclaw_start_cmd":
+			config.OpenClawStartCmd = value
+		}
+	}
+
+	return config
+}
+
+func waitForHealthyEndpoint(url string, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	client := &http.Client{Timeout: 2 * time.Second}
+
+	for time.Now().Before(deadline) {
+		resp, err := client.Get(url)
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode < http.StatusBadRequest {
+				return true
+			}
+		}
+		time.Sleep(2 * time.Second)
+	}
+
+	return false
 }
 
 func loadState() (deploymentState, error) {

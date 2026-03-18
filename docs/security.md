@@ -8,7 +8,7 @@ The ClawHost team takes security seriously. If you discover a security vulnerabi
 
 ### How to Report
 
-**Email**: security@clawhost.com
+**Private Reporting**: Open a private security advisory in this repository (Security tab).
 
 **PGP Key**: Available on request from the security team.
 
@@ -217,7 +217,7 @@ graph TB
 
 ## Contact Information
 
-- **Security Team**: security@clawhost.com
+- **Security Team**: GitHub Security Advisories (private report)
 - **General Contact**: hello@clawhost.com
 - **Emergency**: +1-555-SECURITY (24/7)
 

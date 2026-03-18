@@ -379,11 +379,11 @@ clawhost/
 
 ## 🚨 **Security**
 
-For security issues, please email security@clawhost.com instead of creating public issues. See our [Security Policy](SECURITY.md) for details.
+For security issues, please submit a private GitHub Security Advisory instead of creating public issues. See our [Security Policy](SECURITY.md) for details.
 
 ### Reporting Guidelines
 
-- **Sensitive Issues**: Email security@clawhost.com
+- **Sensitive Issues**: Submit a private GitHub Security Advisory
 - **General Bugs**: Create GitHub issues
 - **Feature Requests**: Use GitHub Discussions
 
@@ -391,7 +391,7 @@ For security issues, please email security@clawhost.com instead of creating publ
 
 - **General Questions**: GitHub Discussions
 - **Bugs**: GitHub Issues  
-- **Security**: security@clawhost.com
+- **Security**: GitHub Security Advisories (private)
 - **Community**: community@clawhost.com
 - **Business**: hello@clawhost.com
 

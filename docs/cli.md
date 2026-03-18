@@ -20,14 +20,16 @@ make build
 ./clawhost
 
 # 3) Check health
-curl http://localhost:8080/health
+
 
 # 4) Open dashboard
 # http://localhost:8080/dashboard
 ```
 
-You can also run the core server directly:
+curl http://localhost:8080/health
 
+You can also run the core server directly:
+curl http://localhost:8080/health
 ```bash
 make run-core
 ```
@@ -48,10 +50,16 @@ make run-core
 
 ```bash
 clawhost init                    # Interactive setup wizard
-clawhost deploy                  # Deploy OpenClaw locally
+clawhost deploy                  # Start/check OpenClaw and verify /health
 clawhost upgrade                 # Upgrade to latest version
 clawhost destroy                 # Remove everything (with confirmation)
 ```
+
+## Live Setup During Init/Deploy
+
+- `clawhost init` stores `api_url`, `openclaw_url`, and optional `openclaw_start_cmd` in `.clawhost.yaml`.
+- `clawhost deploy` reads those values, optionally runs `openclaw_start_cmd`, then waits for `openclaw_url/health`.
+- Deploy succeeds only when both Core API and OpenClaw health checks pass.
 
 ## Optional Environment Variables
 
@@ -69,7 +77,7 @@ PORT=9090 ./clawhost
 
 ## Notes
 
-- `clawhost deploy` in OSS mode sets up local deployment state and checks local core health.
+- `clawhost deploy` in OSS mode performs a live OpenClaw handshake and marks status based on real health checks.
 - `clawhost destroy` removes local deployment metadata and deletes `.clawhost.yaml` plus `~/.clawhost` after confirmation.
 - `clawhost logs` still needs an API instance ID and is optional for basic local mode.
 
