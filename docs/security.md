@@ -218,7 +218,7 @@ graph TB
 ## Contact Information
 
 - **Security Team**: GitHub Security Advisories (private report)
-- **General Contact**: hello@clawhost.com
+- **General Contact**: GitHub Discussions
 - **Emergency**: +1-555-SECURITY (24/7)
 
 ---

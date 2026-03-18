@@ -325,7 +325,7 @@ References #456
 - **GitHub Discussions**: For general questions
 - **Discord**: Real-time chat and support
 - **Issues**: For bugs and feature requests
-- **Email**: community@clawhost.com for sensitive topics
+- **Private Contact**: GitHub Discussions for sensitive topics
 
 ### Mentorship Program
 
@@ -336,7 +336,7 @@ New to open source? We offer mentorship:
 - **Project Guidance**: Help choosing what to work on
 - **Career Advice**: Open source career development
 
-Interested? Email mentor@clawhost.com
+Interested? Open a mentoring request in GitHub Discussions
 
 ## 📜 **Code of Conduct**
 
@@ -392,8 +392,8 @@ For security issues, please submit a private GitHub Security Advisory instead of
 - **General Questions**: GitHub Discussions
 - **Bugs**: GitHub Issues  
 - **Security**: GitHub Security Advisories (private)
-- **Community**: community@clawhost.com
-- **Business**: hello@clawhost.com
+- **Community**: GitHub Discussions
+- **Business**: GitHub Discussions
 
 ---
 

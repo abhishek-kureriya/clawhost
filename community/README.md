@@ -118,7 +118,7 @@ Read our full [Code of Conduct](../CODE_OF_CONDUCT.md) to understand expected be
 
 ### 🚨 **Reporting Issues**
 If you experience or witness unacceptable behavior:
-- **Email**: community@clawhost.com
+- **Contact**: GitHub Discussions
 - **Discord**: Message any moderator
 - **Anonymous**: [Report form](https://forms.gle/example)
 
@@ -138,7 +138,7 @@ If you experience or witness unacceptable behavior:
 
 ### 💼 **Business**
 - **Managed Service** - Professional hosting (contact team)
-- **[Enterprise Sales](mailto:enterprise@clawhost.com)** - Custom solutions
+- **Enterprise Sales** - Custom solutions (open a GitHub Discussion)
 - **Partners Program** - Become a partner (contact team)
 
 ---

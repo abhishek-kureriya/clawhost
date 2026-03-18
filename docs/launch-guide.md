@@ -474,7 +474,7 @@ spec:
 - **Documentation**: Check [docs/](../docs/) folder
 - **Community**: Join our [Discord server](https://discord.gg/clawhost)
 - **Issues**: Report bugs on [GitHub](https://github.com/yourusername/clawhost/issues)
-- **Commercial Support**: enterprise@clawhost.com
+- **Commercial Support**: Use GitHub Discussions
 
 ## Success Metrics
 

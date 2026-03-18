@@ -549,7 +549,7 @@ echo "*/5 * * * * /opt/clawhost/monitor.sh" | crontab -
 - **Documentation**: [GitHub Wiki](https://github.com/yourusername/clawhost/wiki)
 - **Community**: [Discord Server](https://discord.gg/clawhost)
 - **Issues**: [GitHub Issues](https://github.com/yourusername/clawhost/issues)
-- **Email**: support@clawhost.com
+- **Support**: GitHub Issues / GitHub Discussions
 
 ## Next Steps
 
