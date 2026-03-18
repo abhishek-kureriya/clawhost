@@ -1,6 +1,26 @@
-# ClawHost Installation Guide
+# ClawHost Installation Guide (OpenClaw Self-Hosting)
 
-This guide covers installing ClawHost in various environments, from local development to production deployments.
+This guide covers installing ClawHost for OpenClaw self-hosting in local development and production environments.
+
+## Open Source Local Install (Fastest)
+
+Use this mode if you want a simple, self-managed setup on your own machine with the basic dashboard.
+
+```bash
+# 1) Clone
+git clone https://github.com/abhishek-kureriya/clawhost.git
+cd clawhost
+
+# 2) Build and run OSS core
+make build
+./clawhost
+
+# 3) Verify
+curl http://localhost:8080/health
+# Open: http://localhost:8080/dashboard
+```
+
+This flow is fully open source and does not require `hosting-service/`.
 
 ## Quick Start
 
@@ -8,7 +28,7 @@ Get ClawHost running in under 5 minutes:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/yourusername/clawhost.git
+git clone https://github.com/abhishek-kureriya/clawhost.git
 cd clawhost
 
 # 2. Set up environment

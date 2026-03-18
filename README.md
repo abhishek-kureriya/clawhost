@@ -1,4 +1,8 @@
-# ClawHost - Open Source OpenClaw Hosting Platform
+# ClawHost - Open Source OpenClaw Hosting for Self-Hosted AI
+
+ClawHost is an open source OpenClaw hosting platform for teams that want to self-host AI agents on their own machines or servers. It provides a Go-based core API, provisioning automation, monitoring, and a basic local dashboard.
+
+If you are searching for **OpenClaw self-hosting**, **OpenClaw deployment**, **open source AI hosting**, or **self-managed AI agent platform**, this repository is the OSS foundation.
 
 [![Go Version](https://img.shields.io/badge/Go-1.23+-00ADD8?style=for-the-badge&logo=go)](https://golang.org)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
@@ -26,11 +30,27 @@ ClawHost follows an **open source core + commercial service** model, similar to 
 
 📚 For detailed guides and references, see [docs/README.md](docs/README.md).
 
+### Open Source Local Mode (Recommended)
+
+```bash
+# Clone repository
+git clone https://github.com/abhishek-kureriya/clawhost.git
+cd clawhost
+
+# Build and run local OSS core
+make build
+./clawhost
+
+# Verify API and open dashboard
+curl http://localhost:8080/health
+# http://localhost:8080/dashboard
+```
+
 ### Using the Open Source Core
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/clawhost
+git clone https://github.com/abhishek-kureriya/clawhost.git
 cd clawhost
 
 # Install dependencies
@@ -150,7 +170,7 @@ func (p *MyCloudProvider) CreateServer(config ServerConfig) (*ServerInfo, error)
 ### Prerequisites
 - Go 1.23 or higher
 - Docker & Docker Compose
-- Cloud provider API tokens
+- Cloud provider API tokens (only for remote provisioning workflows)
 
 ### Local Setup
 ```bash
@@ -189,6 +209,7 @@ go test -cover ./...
 ## 📄 **Documentation**
 
 - **[Documentation Index](docs/README.md)** - Start here for all docs
+- **[Open Source CLI (Local / Self-Managed)](docs/cli.md)** - Simple OSS command flow
 - **[Launch Guide](docs/launch-guide.md)** - Step-by-step launch and production rollout
 - **[Installation Guide](docs/installation.md)** - Local and production installation
 - **[Core API Reference](docs/core-api.md)** - Open source API documentation

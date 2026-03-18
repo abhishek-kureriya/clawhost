@@ -6,8 +6,13 @@
 *.dylib
 clawhost
 clawhost_*
+clawhost-core
 migrate-tool
 seed-tool
+
+# Local CLI state
+.clawhost/
+.clawhost.yaml
 
 # Test binary, built with `go test -c`
 *.test

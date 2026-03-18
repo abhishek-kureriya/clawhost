@@ -1,6 +1,6 @@
-# Open Source CLI (Local / Self-Managed)
+# Open Source OpenClaw CLI (Local / Self-Managed)
 
-This guide is for the **open source core only**.
+This guide is for the **open source core only** and focuses on OpenClaw self-hosting commands.
 
 It does **not** require the commercial `hosting-service/` code and does **not** mix in cloud provisioning steps.
 

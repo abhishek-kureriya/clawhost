@@ -96,7 +96,7 @@ format:
 	cd core && $(GOCMD) fmt ./...
 
 fmt-check:
-	cd core && test -z "$$($(GOCMD)fmt ./... )"
+	cd core && test -z "$$($(GOCMD) fmt ./... )"
 
 # Security scan
 security:
