@@ -36,10 +36,22 @@ make run-core
 
 - `clawhost` - Start core API server (default port `8080`)
 - `clawhost help` - Show command usage
-- `clawhost init --name local` - Create a local deployment profile/state
+- `clawhost init` - Interactive setup wizard
+- `clawhost deploy` - Deploy OpenClaw locally (self-managed mode)
+- `clawhost upgrade` - Upgrade deployment metadata to latest OpenClaw version
+- `clawhost destroy` - Remove everything (with confirmation)
 - `clawhost status --all` - Show saved local deployment metadata
 - `clawhost backup --output ./backup.json` - Export CLI state
 - `clawhost restore --input ./backup.json` - Import CLI state
+
+## Requested Command Flow
+
+```bash
+clawhost init                    # Interactive setup wizard
+clawhost deploy                  # Deploy OpenClaw locally
+clawhost upgrade                 # Upgrade to latest version
+clawhost destroy                 # Remove everything (with confirmation)
+```
 
 ## Optional Environment Variables
 
@@ -55,13 +67,11 @@ PORT=9090 ./clawhost
 
 - `~/.clawhost/deployments.json`
 
-## Commands Intentionally Excluded From This OSS-Local Guide
+## Notes
 
-The following commands are for cloud provisioning flows and are not needed for simple self-managed local mode:
-
-- `clawhost deploy`
-- `clawhost destroy`
-- `clawhost logs` (depends on provisioned instance IDs)
+- `clawhost deploy` in OSS mode sets up local deployment state and checks local core health.
+- `clawhost destroy` removes local deployment metadata and deletes `.clawhost.yaml` plus `~/.clawhost` after confirmation.
+- `clawhost logs` still needs an API instance ID and is optional for basic local mode.
 
 ## Self-Managed Hosting (Your Own Server)
 

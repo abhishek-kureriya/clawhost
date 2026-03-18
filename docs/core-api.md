@@ -354,4 +354,4 @@ if __name__ == "__main__":
 
 ---
 
-*The ClawHost Core API is open source and free to use. For managed hosting with additional features, check out [ClawHost Commercial Service](https://clawhost.com).*
+*The ClawHost Core API is open source and free to use. For managed hosting with additional features, contact the ClawHost team.*

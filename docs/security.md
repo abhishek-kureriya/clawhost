@@ -10,7 +10,7 @@ The ClawHost team takes security seriously. If you discover a security vulnerabi
 
 **Email**: security@clawhost.com
 
-**PGP Key**: [Available here](https://clawhost.com/pgp-key.asc)
+**PGP Key**: Available on request from the security team.
 
 ### What to Include
 

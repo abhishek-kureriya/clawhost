@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -14,8 +13,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/yourusername/clawhost/core/provisioning"
 )
 
 const (
@@ -59,6 +56,8 @@ func runCLI(args []string) error {
 		return runLogs(args[1:])
 	case "update":
 		return runUpdate(args[1:])
+	case "upgrade":
+		return runUpgrade(args[1:])
 	case "backup":
 		return runBackup(args[1:])
 	case "restore":
@@ -74,14 +73,15 @@ func printCLIUsage() {
 	fmt.Println("clawhost <command> [flags]")
 	fmt.Println("")
 	fmt.Println("Commands:")
-	fmt.Println("  init      Initialize new deployment")
-	fmt.Println("  deploy    Deploy OpenClaw instance")
+	fmt.Println("  init      Interactive setup wizard")
+	fmt.Println("  deploy    Deploy OpenClaw locally")
 	fmt.Println("  status    Check deployment status")
 	fmt.Println("  logs      View logs")
 	fmt.Println("  update    Update OpenClaw version")
+	fmt.Println("  upgrade   Upgrade to latest OpenClaw version")
 	fmt.Println("  backup    Create backup")
 	fmt.Println("  restore   Restore from backup")
-	fmt.Println("  destroy   Remove deployment")
+	fmt.Println("  destroy   Remove everything (with confirmation)")
 	fmt.Println("")
 	fmt.Println("If no command is provided, clawhost starts the Core API server.")
 }
@@ -89,11 +89,13 @@ func printCLIUsage() {
 func runInit(args []string) error {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	name := fs.String("name", "default", "Deployment profile name")
-	provider := fs.String("provider", "hetzner", "Cloud provider")
-	serverType := fs.String("server-type", "cx11", "Server type")
-	location := fs.String("location", "nbg1", "Server location")
+	provider := fs.String("provider", "local", "Deployment provider")
+	serverType := fs.String("server-type", "local", "Server type")
+	location := fs.String("location", "localhost", "Server location")
 	llmProvider := fs.String("llm-provider", "openai", "LLM provider")
 	llmModel := fs.String("llm-model", "gpt-4o-mini", "LLM model")
+	apiURL := fs.String("api-url", "http://localhost:8080", "Local ClawHost API URL")
+	interactive := fs.Bool("interactive", true, "Run interactive setup wizard")
 	overwrite := fs.Bool("overwrite", false, "Overwrite existing config file")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -102,12 +104,25 @@ func runInit(args []string) error {
 		return err
 	}
 
+	if *interactive {
+		fmt.Println("🧙 ClawHost Init Wizard (Local / Self-Managed)")
+		reader := bufio.NewReader(os.Stdin)
+
+		*name = prompt(reader, "Deployment name", *name)
+		*provider = prompt(reader, "Provider", *provider)
+		*serverType = prompt(reader, "Server type", *serverType)
+		*location = prompt(reader, "Location", *location)
+		*llmProvider = prompt(reader, "LLM provider", *llmProvider)
+		*llmModel = prompt(reader, "LLM model", *llmModel)
+		*apiURL = prompt(reader, "Local API URL", *apiURL)
+	}
+
 	configPath := ".clawhost.yaml"
 	if _, err := os.Stat(configPath); err == nil && !*overwrite {
 		return fmt.Errorf("%s already exists (use --overwrite)", configPath)
 	}
 
-	config := fmt.Sprintf("name: %s\nprovider: %s\nserver_type: %s\nlocation: %s\nllm_provider: %s\nllm_model: %s\n", *name, *provider, *serverType, *location, *llmProvider, *llmModel)
+	config := fmt.Sprintf("name: %s\nprovider: %s\nserver_type: %s\nlocation: %s\nllm_provider: %s\nllm_model: %s\napi_url: %s\n", *name, *provider, *serverType, *location, *llmProvider, *llmModel, *apiURL)
 	if err := os.WriteFile(configPath, []byte(config), 0o644); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
@@ -121,6 +136,8 @@ func runInit(args []string) error {
 		state.Deployments[*name] = deployment{
 			Name:       *name,
 			Provider:   *provider,
+			ServerID:   "local-" + *name,
+			PublicIP:   "127.0.0.1",
 			ServerType: *serverType,
 			Location:   *location,
 			Status:     "initialized",
@@ -141,15 +158,8 @@ func runInit(args []string) error {
 func runDeploy(args []string) error {
 	fs := flag.NewFlagSet("deploy", flag.ContinueOnError)
 	name := fs.String("name", "default", "Deployment name")
-	serverType := fs.String("server-type", "cx11", "Hetzner server type")
-	location := fs.String("location", "nbg1", "Hetzner location")
-	sshKey := fs.String("ssh-key", "", "Hetzner SSH key name")
-	llmProvider := fs.String("llm-provider", "openai", "LLM provider")
-	llmModel := fs.String("llm-model", "gpt-4o-mini", "LLM model")
-	personality := fs.String("personality", "You are a helpful AI assistant.", "AI personality prompt")
-	businessKnowledge := fs.String("business-knowledge", "", "Business knowledge prompt")
-	waitReady := fs.Bool("wait", true, "Wait for server to reach running")
-	timeout := fs.Duration("timeout", 15*time.Minute, "Wait timeout")
+	apiURL := fs.String("api-url", "http://localhost:8080", "Local ClawHost Core API URL")
+	openclawURL := fs.String("openclaw-url", "http://localhost:3000", "Local OpenClaw URL")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -157,43 +167,11 @@ func runDeploy(args []string) error {
 		return err
 	}
 
-	apiToken := strings.TrimSpace(os.Getenv("HETZNER_API_TOKEN"))
-	if apiToken == "" {
-		return errors.New("HETZNER_API_TOKEN is required")
-	}
-
-	provider := provisioning.NewHetznerProvider(apiToken)
-	cloudInit := provisioning.GenerateCloudInitScript(provisioning.OpenClawConfig{
-		LLMProvider:       *llmProvider,
-		LLMModel:          *llmModel,
-		PersonalityPrompt: *personality,
-		BusinessKnowledge: *businessKnowledge,
-		EnvironmentVars:   map[string]string{},
-	})
-
-	ctx := context.Background()
-	server, err := provider.CreateServer(ctx, provisioning.ServerConfig{
-		Name:       fmt.Sprintf("openclaw-%s-%d", *name, time.Now().Unix()),
-		ServerType: *serverType,
-		Location:   *location,
-		SSHKeyName: *sshKey,
-		UserData:   cloudInit,
-		Labels: map[string]string{
-			"app":        "openclaw",
-			"deployment": *name,
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("deploy failed: %w", err)
-	}
-
-	if *waitReady {
-		if err := provider.WaitForServer(ctx, server.ID, "running", *timeout); err != nil {
-			return fmt.Errorf("wait for running: %w", err)
-		}
-		refreshed, getErr := provider.GetServer(ctx, server.ID)
-		if getErr == nil {
-			server = refreshed
+	coreHealthy := false
+	if resp, err := http.Get(strings.TrimRight(*apiURL, "/") + "/health"); err == nil {
+		_ = resp.Body.Close()
+		if resp.StatusCode < http.StatusBadRequest {
+			coreHealthy = true
 		}
 	}
 
@@ -206,14 +184,18 @@ func runDeploy(args []string) error {
 	if prev, ok := state.Deployments[*name]; ok && !prev.CreatedAt.IsZero() {
 		createdAt = prev.CreatedAt
 	}
+	status := "local-configured"
+	if coreHealthy {
+		status = "running"
+	}
 	state.Deployments[*name] = deployment{
 		Name:       *name,
-		Provider:   "hetzner",
-		ServerID:   server.ID,
-		PublicIP:   server.PublicIP,
-		Status:     server.Status,
-		ServerType: *serverType,
-		Location:   *location,
+		Provider:   "local",
+		ServerID:   "local-" + *name,
+		PublicIP:   "127.0.0.1",
+		Status:     status,
+		ServerType: "local",
+		Location:   "localhost",
 		Version:    "openclaw-latest",
 		CreatedAt:  createdAt,
 		UpdatedAt:  now,
@@ -222,10 +204,13 @@ func runDeploy(args []string) error {
 		return err
 	}
 
-	fmt.Printf("✅ Deployment created: %s\n", *name)
-	fmt.Printf("Server ID: %s\n", server.ID)
-	fmt.Printf("Public IP: %s\n", server.PublicIP)
-	fmt.Printf("Status: %s\n", server.Status)
+	fmt.Printf("✅ Local deployment configured: %s\n", *name)
+	fmt.Printf("Core API: %s\n", *apiURL)
+	fmt.Printf("OpenClaw URL: %s\n", *openclawURL)
+	fmt.Printf("Status: %s\n", status)
+	if !coreHealthy {
+		fmt.Println("Tip: Start core with `./clawhost` or `make run-core`.")
+	}
 	return nil
 }
 
@@ -257,8 +242,11 @@ func runStatus(args []string) error {
 		sort.Strings(names)
 		for _, deploymentName := range names {
 			d := state.Deployments[deploymentName]
+			d = refreshLocalDeploymentStatus(d)
+			state.Deployments[deploymentName] = d
 			printStatusLine(d)
 		}
+		_ = saveState(state)
 		return nil
 	}
 
@@ -271,18 +259,9 @@ func runStatus(args []string) error {
 		return fmt.Errorf("deployment %q not found", target)
 	}
 
-	apiToken := strings.TrimSpace(os.Getenv("HETZNER_API_TOKEN"))
-	if apiToken != "" && d.ServerID != "" {
-		provider := provisioning.NewHetznerProvider(apiToken)
-		server, getErr := provider.GetServer(context.Background(), d.ServerID)
-		if getErr == nil {
-			d.Status = server.Status
-			d.PublicIP = server.PublicIP
-			d.UpdatedAt = time.Now().UTC()
-			state.Deployments[target] = d
-			_ = saveState(state)
-		}
-	}
+	d = refreshLocalDeploymentStatus(d)
+	state.Deployments[target] = d
+	_ = saveState(state)
 
 	statusJSON, err := json.MarshalIndent(d, "", "  ")
 	if err != nil {
@@ -369,6 +348,19 @@ func runUpdate(args []string) error {
 	return nil
 }
 
+func runUpgrade(args []string) error {
+	fs := flag.NewFlagSet("upgrade", flag.ContinueOnError)
+	name := fs.String("name", "default", "Deployment name")
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+
+	return runUpdate([]string{"--name", *name, "--version", "latest"})
+}
+
 func runBackup(args []string) error {
 	fs := flag.NewFlagSet("backup", flag.ContinueOnError)
 	output := fs.String("output", "", "Backup output file path")
@@ -445,6 +437,7 @@ func runDestroy(args []string) error {
 	fs := flag.NewFlagSet("destroy", flag.ContinueOnError)
 	name := fs.String("name", "default", "Deployment name")
 	force := fs.Bool("force", false, "Skip confirmation prompt")
+	all := fs.Bool("all", true, "Remove all local ClawHost config and state")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -465,7 +458,11 @@ func runDestroy(args []string) error {
 	}
 
 	if !*force {
-		fmt.Printf("Destroy deployment %q (server %s)? [y/N]: ", *name, d.ServerID)
+		if *all {
+			fmt.Printf("Remove deployment %q and delete local state/config files? [y/N]: ", *name)
+		} else {
+			fmt.Printf("Destroy deployment %q? [y/N]: ", *name)
+		}
 		reader := bufio.NewReader(os.Stdin)
 		line, readErr := reader.ReadString('\n')
 		if readErr != nil {
@@ -478,27 +475,80 @@ func runDestroy(args []string) error {
 		}
 	}
 
-	apiToken := strings.TrimSpace(os.Getenv("HETZNER_API_TOKEN"))
-	if apiToken == "" {
-		return errors.New("HETZNER_API_TOKEN is required")
-	}
-
-	provider := provisioning.NewHetznerProvider(apiToken)
-	if err := provider.DeleteServer(context.Background(), d.ServerID); err != nil {
-		return fmt.Errorf("destroy server: %w", err)
-	}
-
 	delete(state.Deployments, *name)
 	if err := saveState(state); err != nil {
 		return err
 	}
 
+	if *all {
+		if err := os.Remove(".clawhost.yaml"); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return err
+		}
+		stateDir := filepath.Join(home, stateDirName)
+		if err := os.RemoveAll(stateDir); err != nil {
+			return err
+		}
+	}
+
 	fmt.Printf("✅ Deployment %q destroyed\n", *name)
+	if *all {
+		fmt.Println("✅ Local ClawHost state/config removed")
+	}
 	return nil
+}
+
+func prompt(reader *bufio.Reader, label, defaultValue string) string {
+	fmt.Printf("%s [%s]: ", label, defaultValue)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return defaultValue
+	}
+	value := strings.TrimSpace(line)
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }
 
 func printStatusLine(d deployment) {
 	fmt.Printf("- %s: status=%s server_id=%s ip=%s updated=%s\n", d.Name, d.Status, d.ServerID, d.PublicIP, d.UpdatedAt.Format(time.RFC3339))
+}
+
+func refreshLocalDeploymentStatus(d deployment) deployment {
+	if !strings.HasPrefix(d.ServerID, "local-") {
+		return d
+	}
+
+	apiURL := "http://localhost:8080"
+	if content, readErr := os.ReadFile(".clawhost.yaml"); readErr == nil {
+		for _, line := range strings.Split(string(content), "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "api_url:") {
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					apiURL = strings.TrimSpace(parts[1])
+				}
+			}
+		}
+	}
+
+	if resp, reqErr := http.Get(strings.TrimRight(apiURL, "/") + "/health"); reqErr == nil {
+		_ = resp.Body.Close()
+		if resp.StatusCode < http.StatusBadRequest {
+			d.Status = "running"
+		} else {
+			d.Status = "local-configured"
+		}
+	} else {
+		d.Status = "local-configured"
+	}
+
+	d.UpdatedAt = time.Now().UTC()
+	return d
 }
 
 func loadState() (deploymentState, error) {

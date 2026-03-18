@@ -137,9 +137,9 @@ If you experience or witness unacceptable behavior:
 - **YouTube**: [ClawHost Channel](https://youtube.com/@clawhost)
 
 ### 💼 **Business**
-- **[Managed Service](https://clawhost.com)** - Professional hosting
+- **Managed Service** - Professional hosting (contact team)
 - **[Enterprise Sales](mailto:enterprise@clawhost.com)** - Custom solutions
-- **[Partners Program](https://clawhost.com/partners)** - Become a partner
+- **Partners Program** - Become a partner (contact team)
 
 ---
 

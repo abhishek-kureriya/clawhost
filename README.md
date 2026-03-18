@@ -64,7 +64,7 @@ go run core/cmd/main.go
 
 Skip the setup entirely! Get started with managed OpenClaw hosting:
 
-🌐 **[Try ClawHost Managed Service](https://clawhost.com)** - From €49/month
+🌐 Managed service details available on request.
 
 ---
 
@@ -270,7 +270,7 @@ Don't want to manage infrastructure? Try our hosted service:
 - **💼 Professional**: €99/month - 3 AI instances, priority support
 - **🏢 Enterprise**: €199/month - 10 AI instances, 24/7 support
 
-**[Start Free Trial](https://clawhost.com/signup)** → No credit card required
+Free trial information available on request.
 
 ---
 
@@ -314,4 +314,4 @@ Don't want to manage infrastructure? Try our hosted service:
 
 **Built with ❤️ for the OpenClaw community**
 
-[Website](https://clawhost.com) • [Documentation](docs/) • [Community](community/) • [Support](https://clawhost.com/support)
+[Documentation](docs/) • [Community](community/)

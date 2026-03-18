@@ -5,7 +5,7 @@ Complete reference for the ClawHost REST API, covering both the open source core
 ## Base URLs
 
 - **Core API (Open Source)**: `http://localhost:8080`
-- **Commercial Service**: `https://api.clawhost.com`
+- **Commercial Service**: `https://api.example.com`
 - **Development**: `http://localhost:3000`
 
 ## Authentication
@@ -21,7 +21,7 @@ Uses JWT authentication with API keys:
 ```bash
 # Get your API key from the dashboard
 curl -H "Authorization: Bearer YOUR_API_KEY" \
-     https://api.clawhost.com/api/v1/instances
+  https://api.example.com/api/v1/instances
 ```
 
 **Authentication Headers:**
