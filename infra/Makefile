@@ -84,7 +84,7 @@ do-check:
 	@doctl account get
 	@echo ""
 	@echo "==> Existing droplets"
-	@doctl compute droplet list --format "ID,Name,Status,PublicIPv4,Region,Size"
+	@doctl compute droplet list --format "ID,Name,Status,PublicIPv4,Region,SizeSlug"
 	@echo ""
 	@echo "==> SSH keys on account"
 	@doctl compute ssh-key list --format "ID,Name,Fingerprint"
