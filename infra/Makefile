@@ -11,10 +11,10 @@ PROVIDER ?= do
 
 # Resolve Terraform directory based on PROVIDER
 ifeq ($(PROVIDER),do)
-  TF_DIR := infra/terraform/digitalocean
+  TF_DIR := terraform/digitalocean
   PROVIDER_LABEL := DigitalOcean
 else ifeq ($(PROVIDER),hetzner)
-  TF_DIR := infra/terraform
+  TF_DIR := terraform
   PROVIDER_LABEL := Hetzner Cloud
 else
   $(error Unknown PROVIDER "$(PROVIDER)". Use: do | hetzner)
