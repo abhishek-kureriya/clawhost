@@ -24,8 +24,45 @@ infra/
 ## Prerequisites
 
 - [Terraform](https://developer.hashicorp.com/terraform/install) ≥ 1.6
+- [doctl](https://docs.digitalocean.com/reference/doctl/how-to/install/) — DigitalOcean CLI
 - A DigitalOcean or Hetzner account with an API token
 - An SSH key pair (`~/.ssh/id_rsa` / `id_rsa.pub`)
+
+---
+
+## Step 0 — Login to DigitalOcean
+
+Before provisioning, authenticate `doctl` with your account:
+
+```bash
+make -C infra do-login
+# Prompts for your Personal Access Token
+# Get one at: https://cloud.digitalocean.com/account/api/tokens
+```
+
+Or non-interactively with an env var:
+
+```bash
+DO_TOKEN=dop_v1_... make -C infra do-login
+```
+
+Verify the login and see existing resources:
+
+```bash
+make -C infra do-check
+```
+
+Example output (empty = no resources yet, that's fine):
+
+```
+==> Authenticated account
+Email                    ...
+==> Existing droplets
+ID    Name    Status    Public IPv4    Region    Size Slug
+
+==> SSH keys on account
+ID    Name    FingerPrint
+```
 
 ---
 
