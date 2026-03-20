@@ -88,6 +88,12 @@ For detailed architecture and product flow diagrams, see:
 - **[Core API Design](docs/core-api.md)** - Open source core APIs
 - **[Repository Structure](docs/repository-structure.md)** - Full project layout
 
+## 🧩 **MCP Bridge (Model Context Protocol)**
+
+The `mcp-bridge` is a high-performance Go package that acts as a universal adapter for AI tools and services that conform to the Model Context Protocol (MCP). It allows you to manage and aggregate multiple MCP-compliant tools (like Slack, GitHub, databases) into a single, unified interface for your AI agents.
+
+- **[MCP Bridge Documentation](mcp-bridge/README.md)** - Learn how to use the bridge to connect your AI to various tools.
+
 ## 📋 **Core Features (Open Source)**
 
 ### ☁️ **Multi-Cloud Provisioning**
@@ -281,14 +287,7 @@ Free trial information available on request.
 - [ ] 🚧 Prometheus integration
 - [ ] 🚧 Terraform modules
 
-### Commercial Service
-- [x] ✅ Customer dashboard UI
-- [x] ✅ Stripe billing integration
-- [x] ✅ Support ticket system
-- [ ] 🚧 Advanced monitoring dashboard
-- [ ] 🚧 Automated backups
-- [ ] 🚧 Multi-region deployments
-- [ ] 🚧 Enterprise SSO
+
 
 ---
 
