@@ -93,6 +93,7 @@ coverage.out
 .terraform/
 .terraform.lock.hcl
 infra/terraform/terraform.tfvars
+infra/terraform/digitalocean/terraform.tfvars
 infra/.env.server
 
 # Node.js (for future frontend)

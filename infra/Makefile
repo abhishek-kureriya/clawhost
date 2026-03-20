@@ -1,13 +1,29 @@
 # ClawHost Infrastructure Makefile
-# Usage: make <target>  (run from repo root or infra/)
+# Usage: make <target> [PROVIDER=do|hetzner]
+#
+#   PROVIDER=do       → DigitalOcean droplet  (default)
+#   PROVIDER=hetzner  → Hetzner Cloud server
 
 SHELL := /bin/bash
-TF_DIR := infra/terraform
+
+# Default cloud provider
+PROVIDER ?= do
+
+# Resolve Terraform directory based on PROVIDER
+ifeq ($(PROVIDER),do)
+  TF_DIR := infra/terraform/digitalocean
+  PROVIDER_LABEL := DigitalOcean
+else ifeq ($(PROVIDER),hetzner)
+  TF_DIR := infra/terraform
+  PROVIDER_LABEL := Hetzner Cloud
+else
+  $(error Unknown PROVIDER "$(PROVIDER)". Use: do | hetzner)
+endif
 
 # Auto-detect server IP from Terraform output (after provisioning)
 SERVER_IP := $(shell cd $(TF_DIR) && terraform output -raw server_ip 2>/dev/null)
 
-.PHONY: help init plan provision destroy ssh deploy logs status ssl clean-tf
+.PHONY: help init plan provision destroy ssh deploy logs logs-bootstrap logs-openclaw status ssl clean-tf
 
 # ─────────────────────────────────────────────
 # Help
@@ -16,43 +32,54 @@ help:
 	@echo ""
 	@echo "  ClawHost Infrastructure Commands"
 	@echo "  ─────────────────────────────────"
-	@echo "  make init        Init Terraform providers"
-	@echo "  make plan        Preview infrastructure changes"
-	@echo "  make provision   Create/update Hetzner server"
-	@echo "  make destroy     Destroy all cloud resources"
-	@echo "  make ssh         SSH into the server"
-	@echo "  make deploy      Push latest code & restart services"
-	@echo "  make logs        Tail logs from the server"
-	@echo "  make status      Show service health on the server"
-	@echo "  make ssl         Issue Let's Encrypt cert (needs DOMAIN=)"
+	@echo "  PROVIDER=do (default) | PROVIDER=hetzner"
+	@echo ""
+	@echo "  make init                   Init Terraform providers"
+	@echo "  make plan                   Preview infrastructure changes"
+	@echo "  make provision              Create/update droplet ($(PROVIDER_LABEL))"
+	@echo "  make destroy                Destroy all cloud resources"
+	@echo "  make ssh                    SSH into the server"
+	@echo "  make deploy                 Push latest code & restart services"
+	@echo "  make logs                   Tail ClawHost Core API logs"
+	@echo "  make logs-bootstrap         Tail first-boot bootstrap log"
+	@echo "  make logs-openclaw          Tail OpenClaw container logs"
+	@echo "  make status                 Show service health on the server"
+	@echo "  make ssl DOMAIN=x.com       Issue Let's Encrypt cert"
+	@echo ""
+	@echo "  Examples:"
+	@echo "    make provision                      # DigitalOcean (default)"
+	@echo "    make provision PROVIDER=hetzner     # Hetzner Cloud"
 	@echo ""
 
 # ─────────────────────────────────────────────
 # Terraform
 # ─────────────────────────────────────────────
 init:
-	@echo "==> Initialising Terraform..."
+	@echo "==> Initialising Terraform for $(PROVIDER_LABEL)..."
 	@[ -f $(TF_DIR)/terraform.tfvars ] || { \
 		cp $(TF_DIR)/terraform.tfvars.example $(TF_DIR)/terraform.tfvars; \
-		echo "  ✏  Edit infra/terraform/terraform.tfvars before running 'make provision'"; \
+		echo "  ✏  Edit $(TF_DIR)/terraform.tfvars before running 'make provision'"; \
 	}
 	cd $(TF_DIR) && terraform init
 
 plan:
+	@echo "==> Planning for $(PROVIDER_LABEL)..."
 	cd $(TF_DIR) && terraform plan
 
 provision:
-	@echo "==> Provisioning Hetzner server..."
+	@echo "==> Provisioning on $(PROVIDER_LABEL)..."
 	cd $(TF_DIR) && terraform apply -auto-approve
 	@echo ""
 	@echo "  Server IP : $$(cd $(TF_DIR) && terraform output -raw server_ip)"
 	@echo "  SSH       : $$(cd $(TF_DIR) && terraform output -raw ssh_command)"
+	@echo "  Core API  : $$(cd $(TF_DIR) && terraform output -raw core_api_url)"
+	@echo "  OpenClaw  : $$(cd $(TF_DIR) && terraform output -raw openclaw_ui_url)"
 	@echo ""
 	@echo "  Bootstrap is running in the background (~3 min)."
 	@echo "  Watch progress: make logs-bootstrap"
 
 destroy:
-	@echo "WARNING: This will delete all cloud resources."
+	@echo "WARNING: This will delete ALL $(PROVIDER_LABEL) resources."
 	@read -p "Type 'yes' to confirm: " confirm; \
 	[ "$$confirm" = "yes" ] && cd $(TF_DIR) && terraform destroy -auto-approve
 
