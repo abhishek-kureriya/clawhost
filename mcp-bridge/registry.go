@@ -2,6 +2,7 @@ package mcpbridge
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -172,7 +173,7 @@ func (tr *ToolRegistry) GetAllToolsForLLM() []map[string]interface{} {
 	return result
 }
 
-// ExecuteTool calls a tool on its server and returns the result.
+// ExecuteTool calls a tool on its server and returns all content items.
 func (tr *ToolRegistry) ExecuteTool(ctx context.Context, toolID string, params json.RawMessage) (interface{}, error) {
 	tool := tr.GetTool(toolID)
 	if tool == nil {
@@ -185,9 +186,12 @@ func (tr *ToolRegistry) ExecuteTool(ctx context.Context, toolID string, params j
 		return nil, err
 	}
 
-	// Extract text from response
-	if len(result.Content) > 0 {
+	// Return a single string for single-text responses, or the full content slice.
+	if len(result.Content) == 1 && result.Content[0].Type == "text" {
 		return result.Content[0].Text, nil
+	}
+	if len(result.Content) > 0 {
+		return result.Content, nil
 	}
 
 	return nil, nil
@@ -211,12 +215,16 @@ func (tr *ToolRegistry) GetStats() map[string]interface{} {
 	}
 }
 
-// hashTool creates a deterministic hash of a tool for change detection.
+// hashTool creates a deterministic SHA-256 hash of a tool for change detection.
 func hashTool(tool *ToolInfo) string {
-	// Simple hash combining server, name, and description
-	h := tool.Server + ":" + tool.OriginalName + ":" + tool.Description
-	// In production, could use sha256 or similar
-	return fmt.Sprintf("%x", len(h)) // Placeholder; implement proper hashing as needed
+	h := sha256.New()
+	h.Write([]byte(tool.Server))
+	h.Write([]byte(":"))
+	h.Write([]byte(tool.OriginalName))
+	h.Write([]byte(":"))
+	h.Write([]byte(tool.Description))
+	h.Write(tool.InputSchema)
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 // SyncWithBridge periodically refreshes the registry from the bridge.
