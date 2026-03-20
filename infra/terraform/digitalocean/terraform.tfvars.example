@@ -6,10 +6,10 @@ project_name        = "clawhost"
 environment         = "production"
 
 # Cheapest options:
-#   s-1vcpu-1gb  → $6/mo  (tight, not recommended for full stack)
-#   s-1vcpu-2gb  → $12/mo ← good starting point
+#   s-1vcpu-1gb  → $6/mo  ← default
+#   s-1vcpu-2gb  → $12/mo
 #   s-2vcpu-4gb  → $24/mo (comfortable for MCP + OpenClaw + Postgres)
-droplet_size        = "s-1vcpu-2gb"
+droplet_size        = "s-1vcpu-1gb"
 
 # Region: ams3 | nyc3 | sgp1 | lon1 | fra1 | blr1 | tor1 | syd1
 region              = "ams3"

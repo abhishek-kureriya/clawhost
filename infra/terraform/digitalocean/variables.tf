@@ -21,13 +21,13 @@ variable "environment" {
 variable "droplet_size" {
   description = <<-EOT
     DigitalOcean droplet size slug. Cost-effective options:
-      s-1vcpu-1gb    →  1 vCPU,  1 GB RAM  ($6/mo)   ← bare minimum
-      s-1vcpu-2gb    →  1 vCPU,  2 GB RAM  ($12/mo)  ← recommended
+      s-1vcpu-1gb    →  1 vCPU,  1 GB RAM  ($6/mo)   ← default
+      s-1vcpu-2gb    →  1 vCPU,  2 GB RAM  ($12/mo)
       s-2vcpu-4gb    →  2 vCPU,  4 GB RAM  ($24/mo)
       s-4vcpu-8gb    →  4 vCPU,  8 GB RAM  ($48/mo)
   EOT
   type        = string
-  default     = "s-1vcpu-2gb"
+  default     = "s-1vcpu-1gb"
 }
 
 variable "region" {
