@@ -23,7 +23,7 @@ endif
 # Auto-detect server IP from Terraform output (after provisioning)
 SERVER_IP := $(shell cd $(TF_DIR) && terraform output -raw server_ip 2>/dev/null)
 
-.PHONY: help init plan provision destroy ssh deploy logs logs-bootstrap logs-openclaw status ssl clean-tf
+.PHONY: help do-login do-check init plan provision destroy ssh deploy logs logs-bootstrap logs-openclaw status ssl clean-tf
 
 # ─────────────────────────────────────────────
 # Help
@@ -50,6 +50,44 @@ help:
 	@echo "    make provision                      # DigitalOcean (default)"
 	@echo "    make provision PROVIDER=hetzner     # Hetzner Cloud"
 	@echo ""
+
+# ─────────────────────────────────────────────
+# DigitalOcean CLI login
+# ─────────────────────────────────────────────
+
+# Authenticate doctl using an API token.
+# If DO_TOKEN is set in env it uses that; otherwise prompts interactively.
+do-login:
+	@command -v doctl >/dev/null 2>&1 || { \
+		echo "doctl not found. Install it first:"; \
+		echo "  Linux : sudo snap install doctl"; \
+		echo "  macOS : brew install doctl"; \
+		echo "  Docs  : https://docs.digitalocean.com/reference/doctl/how-to/install/"; \
+		exit 1; \
+	}
+	@if [ -n "$$DO_TOKEN" ]; then \
+		echo "==> Authenticating doctl with DO_TOKEN env var..."; \
+		doctl auth init --access-token "$$DO_TOKEN"; \
+	else \
+		echo "==> Authenticating doctl interactively..."; \
+		echo "    Paste your DigitalOcean Personal Access Token when prompted."; \
+		echo "    (Create one at https://cloud.digitalocean.com/account/api/tokens)"; \
+		doctl auth init; \
+	fi
+	@echo ""
+	@echo "Login successful. Run 'make do-check' to verify."
+
+# Show the authenticated account and a summary of existing resources.
+do-check:
+	@command -v doctl >/dev/null 2>&1 || { echo "doctl not installed. Run 'make do-login' first."; exit 1; }
+	@echo "==> Authenticated account"
+	@doctl account get
+	@echo ""
+	@echo "==> Existing droplets"
+	@doctl compute droplet list --format "ID,Name,Status,PublicIPv4,Region,Size"
+	@echo ""
+	@echo "==> SSH keys on account"
+	@doctl compute ssh-key list --format "ID,Name,Fingerprint"
 
 # ─────────────────────────────────────────────
 # Terraform
