@@ -1,0 +1,20 @@
+# Copy this file to terraform.tfvars and fill in your values.
+# terraform.tfvars is gitignored — never commit your real token.
+
+hetzner_api_token   = "your_hetzner_api_token_here"
+project_name        = "clawhost"
+environment         = "production"
+
+# cx11 (~€3.79/mo) for light use; cx21 (~€6.90/mo) recommended
+server_type         = "cx21"
+location            = "nbg1"   # Nuremberg — nbg1 | fsn1 | hel1 | ash | hil
+
+ssh_public_key_path = "~/.ssh/id_rsa.pub"
+
+# Restrict to your IP in production:
+# allowed_ssh_ips = ["1.2.3.4/32"]
+allowed_ssh_ips     = ["0.0.0.0/0", "::/0"]
+
+repo_url            = "https://github.com/abhishek-kureriya/clawhost.git"
+go_version          = "1.23.4"
+node_version        = "20"

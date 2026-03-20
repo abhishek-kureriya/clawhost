@@ -92,6 +92,8 @@ coverage.out
 *.tfstate.*
 .terraform/
 .terraform.lock.hcl
+infra/terraform/terraform.tfvars
+infra/.env.server
 
 # Node.js (for future frontend)
 node_modules/
@@ -99,4 +101,4 @@ node_modules/
 .nuxt/
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
+yarn-error.log*mcp-bridge/examples/examples
