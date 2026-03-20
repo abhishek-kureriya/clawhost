@@ -25,9 +25,11 @@ services:
 
   # ---------------------------------------------------------------------------
   # OpenClaw — AI agent / chat UI
+  # Built from source by bootstrap.sh and tagged as openclaw:latest
+  # Override with OPENCLAW_IMAGE env var to use a pre-built image instead.
   # ---------------------------------------------------------------------------
   openclaw:
-    image: ghcr.io/open-webui/open-webui:main   # swap with your private image if needed
+    image: ${OPENCLAW_IMAGE:-openclaw:latest}
     container_name: openclaw
     restart: unless-stopped
     ports:

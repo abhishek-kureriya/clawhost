@@ -18,3 +18,7 @@ allowed_ssh_ips     = ["0.0.0.0/0", "::/0"]
 repo_url            = "https://github.com/abhishek-kureriya/clawhost.git"
 go_version          = "1.23.4"
 node_version        = "20"
+
+# OpenClaw source repo — the server will clone this and build the Docker image.
+# Required for a full working install. Leave empty to skip (manual install).
+openclaw_repo_url   = "https://github.com/your-org/openclaw.git"

@@ -86,10 +86,11 @@ resource "hcloud_firewall" "clawhost" {
 # ---------------------------------------------------------------------------
 locals {
   user_data = templatefile("${path.module}/cloud-init.yaml", {
-    repo_url     = var.repo_url
-    project_name = var.project_name
-    go_version   = var.go_version
-    node_version = var.node_version
+    repo_url           = var.repo_url
+    project_name       = var.project_name
+    go_version         = var.go_version
+    node_version       = var.node_version
+    openclaw_repo_url  = var.openclaw_repo_url
   })
 }
 

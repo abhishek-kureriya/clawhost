@@ -63,6 +63,12 @@ variable "node_version" {
   default     = "20"
 }
 
+variable "openclaw_repo_url" {
+  description = "Git URL of the OpenClaw source repo to clone and build on the server. Leave empty to skip build (manual install required)."
+  type        = string
+  default     = ""
+}
+
 variable "repo_url" {
   description = "Git repository URL to clone on the server"
   type        = string

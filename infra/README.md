@@ -23,14 +23,16 @@ make provision          →    Terraform creates:
                                                             2. Install Docker + Compose
                                                             3. Install Node.js 20 (for npx MCP)
                                                             4. Install Go 1.23
-                                                            5. git clone this repo
+                                                            5. git clone this (clawhost) repo
                                                             6. go build → clawhost-core binary
-                                                            7. docker compose up →
+                                                            7. git clone openclaw_repo_url
+                                                               docker build -t openclaw:latest .
+                                                            8. docker compose up →
                                                                  PostgreSQL
-                                                                 OpenClaw UI  (:3000)
+                                                                 OpenClaw UI  (:3000)  ← built image
                                                                  Nginx        (:80)
-                                                            8. systemd service for clawhost-core (:8080)
-                                                            9. UFW firewall enabled
+                                                            9. systemd service for clawhost-core (:8080)
+                                                           10. UFW firewall enabled
 make logs-bootstrap     →                             ←  tail /var/log/clawhost-bootstrap.log
                                                             (watch progress live)
 ```
@@ -139,6 +141,7 @@ Key fields:
 | `droplet_size` | Droplet slug | `"s-1vcpu-1gb"` ($6/mo) |
 | `ssh_public_key_path` | Path to your public key | `"~/.ssh/id_rsa.pub"` |
 | `allowed_ssh_ips` | IPs allowed to SSH | `["1.2.3.4/32"]` |
+| `openclaw_repo_url` | **OpenClaw Git repo to clone & build** | `"https://github.com/your-org/openclaw.git"` |
 
 **Droplet size options:**
 
@@ -260,7 +263,16 @@ The `cloud-init.yaml` script runs automatically on first boot and:
 2. Installs **Docker** + Docker Compose
 3. Installs **Node.js 20** (required for `npx` MCP servers)
 4. Installs **Go 1.23** and builds `clawhost-core`
-5. Clones this repository to `/opt/clawhost/app`
-6. Starts **OpenClaw + PostgreSQL + Nginx** via Docker Compose
-7. Registers `clawhost-core` as a **systemd service** (auto-restart on crash/reboot)
-8. Configures **UFW firewall** (allow 22, 80, 443; deny everything else)
+5. Clones this (`clawhost`) repository to `/opt/clawhost/app`
+6. **Clones OpenClaw** from `openclaw_repo_url` to `/opt/openclaw`
+7. **Builds the OpenClaw Docker image** — `docker build -t openclaw:latest .`
+8. Starts **OpenClaw + PostgreSQL + Nginx** via Docker Compose (using the locally built image)
+9. Registers `clawhost-core` as a **systemd service** (auto-restart on crash/reboot)
+10. Configures **UFW firewall** (allow 22, 80, 443; deny everything else)
+
+> If `openclaw_repo_url` is left empty in `terraform.tfvars`, step 6–8 are skipped and a warning is logged. You can install OpenClaw manually afterwards by SSH-ing in and running:
+> ```bash
+> git clone https://github.com/your-org/openclaw.git /opt/openclaw
+> cd /opt/openclaw && docker build -t openclaw:latest .
+> cd /opt/clawhost/app && docker compose -f infra/docker/openclaw.yml up -d
+> ```

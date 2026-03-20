@@ -33,7 +33,9 @@ write_files:
       REPO_URL="${repo_url}"
       GO_VERSION="${go_version}"
       NODE_VERSION="${node_version}"
+      OPENCLAW_REPO="${openclaw_repo_url}"
       INSTALL_DIR="/opt/clawhost/app"
+      OPENCLAW_DIR="/opt/openclaw"
       GO_DIR="/usr/local/go"
 
       # -----------------------------------------------------------------------
@@ -93,10 +95,33 @@ write_files:
       /usr/local/go/bin/go build -o /usr/local/bin/clawhost-core ./core/cmd
 
       # -----------------------------------------------------------------------
-      # 5. OpenClaw via Docker
+      # 5. Install OpenClaw from source
       # -----------------------------------------------------------------------
-      echo "[5/7] Starting OpenClaw..."
-      docker compose -f "$INSTALL_DIR/infra/docker/openclaw.yml" up -d --pull always
+      echo "[5/7] Installing OpenClaw..."
+
+      if [ -z "$OPENCLAW_REPO" ]; then
+        echo "  WARNING: openclaw_repo_url not set — skipping OpenClaw install."
+        echo "  Set OPENCLAW_REPO in your terraform.tfvars and re-run bootstrap."
+      else
+        # Clone or update OpenClaw source
+        if [ -d "$OPENCLAW_DIR/.git" ]; then
+          echo "  Updating existing OpenClaw repo..."
+          cd "$OPENCLAW_DIR" && git pull
+        else
+          echo "  Cloning OpenClaw from $OPENCLAW_REPO..."
+          git clone "$OPENCLAW_REPO" "$OPENCLAW_DIR"
+        fi
+
+        # Build Docker image from source
+        echo "  Building OpenClaw Docker image..."
+        cd "$OPENCLAW_DIR"
+        docker build -t openclaw:latest .
+
+        # Start the full stack (uses locally built image)
+        echo "  Starting OpenClaw stack..."
+        OPENCLAW_IMAGE=openclaw:latest \
+          docker compose -f "$INSTALL_DIR/infra/docker/openclaw.yml" up -d
+      fi
 
       # -----------------------------------------------------------------------
       # 6. Systemd service for ClawHost Core API
