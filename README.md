@@ -70,43 +70,23 @@ Skip the setup entirely! Get started with managed OpenClaw hosting:
 
 ## 🏗️ **Architecture**
 
-### Product Flow
+### Open Source Core
+The open source core provides:
+- **Server Provisioning**: Cloud provider integrations for deploying OpenClaw
+- **Instance Monitoring**: Real-time metrics and health checks
+- **Core API**: Management APIs for instances and configurations
 
-```
-┌─ Marketing Site ─┐    ┌─ Onboarding App ─┐    ┌─ Customer Dashboard ─┐
-│ • Landing page   │    │ • Sign up wizard │    │ • Manage OpenClaw    │
-│ • Pricing        │ -> │ • Payment setup  │ -> │ • Analytics          │
-│ • Testimonials   │    │ • AI configuration│   │ • Platform settings  │
-└──────────────────┘    └──────────────────┘    └──────────────────────┘
-        │
-        ▼
-      ┌─ Provisioning API ─┐
-      │ • Create server     │
-      │ • Install OpenClaw  │
-      │ • Connect platforms │
-      └─────────────────────┘
-```
+### Hosting Service (Commercial)
+The commercial hosting service is built on top of the open source core and adds:
+- **Marketing & Onboarding**: Sign-up flow and customer management
+- **Dashboard**: Instance management and analytics interface
+- **Billing**: Stripe integration and subscription management
+- **Support**: Ticket system and customer support
 
-### Repository Structure
-
-```
-clawhost/
-├── cli/                  # `clawhost` command-line tool
-├── core/                 🔓 OPEN SOURCE
-│   ├── provisioning/     # Cloud provider integrations
-│   ├── monitoring/       # Metrics & health checks
-│   ├── api/             # Core management API
-│   └── cmd/             # Core API server entrypoint
-├── hosting-service/   💼 COMMERCIAL
-│   ├── marketing-site/  # Landing, pricing, testimonials
-│   ├── onboarding/      # Signup, billing setup, AI config
-│   ├── dashboard/       # Customer dashboard and analytics
-│   ├── billing/         # Stripe integration
-│   └── support/         # Ticket system
-├── docs/               # Documentation
-├── examples/           # Usage examples
-└── community/          # Community resources
-```
+For detailed architecture and product flow diagrams, see:
+- **[Hosting Service Architecture](hosting-service/docs/architecture.md)** - Commercial service design
+- **[Core API Design](docs/core-api.md)** - Open source core APIs
+- **[Repository Structure](docs/repository-structure.md)** - Full project layout
 
 ## 📋 **Core Features (Open Source)**
 
