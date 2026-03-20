@@ -1,0 +1,180 @@
+# ClawHost — Infrastructure
+
+Terraform-based provisioning for ClawHost + OpenClaw on cloud servers.
+Supports **DigitalOcean** (default) and **Hetzner Cloud** from a single shared bootstrap.
+
+```
+infra/
+├── Makefile                            ← all commands (PROVIDER=do|hetzner)
+├── .env.server.example                 ← copy to server as .env
+├── terraform/
+│   ├── cloud-init.yaml                 ← shared first-boot bootstrap script
+│   ├── main.tf / variables.tf / …      ← Hetzner Cloud config
+│   └── digitalocean/
+│       ├── main.tf / variables.tf / …  ← DigitalOcean config
+│       └── terraform.tfvars.example    ← copy → terraform.tfvars
+├── docker/
+│   └── openclaw.yml                    ← OpenClaw + PostgreSQL + Nginx stack
+└── nginx/
+    └── nginx.conf                      ← reverse proxy config
+```
+
+---
+
+## Prerequisites
+
+- [Terraform](https://developer.hashicorp.com/terraform/install) ≥ 1.6
+- A DigitalOcean or Hetzner account with an API token
+- An SSH key pair (`~/.ssh/id_rsa` / `id_rsa.pub`)
+
+---
+
+## DigitalOcean Droplet (default — from $6/mo)
+
+### 1. Initialise
+
+```bash
+make -C infra init PROVIDER=do
+# Creates infra/terraform/digitalocean/terraform.tfvars from example
+```
+
+### 2. Edit config
+
+```bash
+nano infra/terraform/digitalocean/terraform.tfvars
+```
+
+Key fields:
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `do_token` | DigitalOcean personal access token | `"dop_v1_..."` |
+| `region` | Datacenter region | `"ams3"` |
+| `droplet_size` | Droplet slug | `"s-1vcpu-1gb"` ($6/mo) |
+| `ssh_public_key_path` | Path to your public key | `"~/.ssh/id_rsa.pub"` |
+| `allowed_ssh_ips` | IPs allowed to SSH | `["1.2.3.4/32"]` |
+
+**Droplet size options:**
+
+| Slug | vCPU | RAM | Cost |
+|------|------|-----|------|
+| `s-1vcpu-1gb` | 1 | 1 GB | $6/mo ← default |
+| `s-1vcpu-2gb` | 1 | 2 GB | $12/mo |
+| `s-2vcpu-4gb` | 2 | 4 GB | $24/mo |
+
+**Available regions:** `ams3` · `nyc3` · `sgp1` · `lon1` · `fra1` · `blr1` · `tor1` · `syd1`
+
+### 3. Preview
+
+```bash
+make -C infra plan PROVIDER=do
+```
+
+### 4. Provision
+
+```bash
+make -C infra provision PROVIDER=do
+# ~30 sec to create the droplet, ~3 min for bootstrap to complete
+```
+
+### 5. Watch bootstrap
+
+```bash
+make -C infra logs-bootstrap PROVIDER=do
+```
+
+Once bootstrap completes:
+
+| Service | URL |
+|---------|-----|
+| OpenClaw UI | `http://<SERVER_IP>:3000` |
+| ClawHost Core API | `http://<SERVER_IP>:8080` |
+| SSH | `ssh root@<SERVER_IP>` |
+
+---
+
+## Hetzner Cloud (from ~€3.79/mo)
+
+```bash
+make -C infra init PROVIDER=hetzner
+# edit infra/terraform/terraform.tfvars — set hetzner_api_token
+
+make -C infra plan PROVIDER=hetzner
+make -C infra provision PROVIDER=hetzner
+make -C infra logs-bootstrap PROVIDER=hetzner
+```
+
+**Server size options:**
+
+| Type | vCPU | RAM | Cost |
+|------|------|-----|------|
+| `cx11` | 1 | 2 GB | ~€3.79/mo |
+| `cx21` | 2 | 4 GB | ~€6.90/mo ← default |
+| `cx31` | 2 | 8 GB | ~€13.10/mo |
+
+---
+
+## Day-2 Operations
+
+```bash
+# SSH into the server
+make -C infra ssh
+
+# Deploy latest code (git pull + rebuild + restart services)
+make -C infra deploy
+
+# Tail ClawHost Core API logs
+make -C infra logs
+
+# Tail OpenClaw container logs
+make -C infra logs-openclaw
+
+# Show service health summary
+make -C infra status
+
+# Issue a Let's Encrypt TLS cert (domain must point to server IP first)
+make -C infra ssl DOMAIN=yourdomain.com
+
+# Tear down all cloud resources
+make -C infra destroy
+```
+
+---
+
+## Server Environment
+
+Copy `infra/.env.server.example` to `/opt/clawhost/app/.env` on the server and fill in your values before running services.
+
+Key variables:
+
+```bash
+# Database
+DB_PASSWORD=strong_password
+
+# LLM
+OPENAI_API_KEY=sk-...
+
+# MCP Bridge services (optional — enable what you use)
+GITHUB_PERSONAL_ACCESS_TOKEN=
+SLACK_BOT_TOKEN=
+TAVILY_API_KEY=
+
+# Security
+JWT_SECRET=64_char_random_string
+WEBUI_SECRET_KEY=random_string
+```
+
+---
+
+## What the Bootstrap Does
+
+The `cloud-init.yaml` script runs automatically on first boot and:
+
+1. Updates system packages
+2. Installs **Docker** + Docker Compose
+3. Installs **Node.js 20** (required for `npx` MCP servers)
+4. Installs **Go 1.23** and builds `clawhost-core`
+5. Clones this repository to `/opt/clawhost/app`
+6. Starts **OpenClaw + PostgreSQL + Nginx** via Docker Compose
+7. Registers `clawhost-core` as a **systemd service** (auto-restart on crash/reboot)
+8. Configures **UFW firewall** (allow 22, 80, 443; deny everything else)

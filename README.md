@@ -70,74 +70,14 @@ Skip the setup entirely! Get started with managed OpenClaw hosting:
 
 ## ☁️ **Deploy to Cloud**
 
-Spin up a real server with OpenClaw + ClawHost Core fully installed using Terraform. Supports **DigitalOcean** (default) and **Hetzner Cloud**.
+Spin up OpenClaw + ClawHost Core on a real server in ~3 minutes using Terraform. Supports **DigitalOcean** (from $6/mo) and **Hetzner Cloud** (from €3.79/mo).
 
-### Prerequisites
-- [Terraform](https://developer.hashicorp.com/terraform/install) ≥ 1.6
-- A DigitalOcean or Hetzner account with an API token
-- An SSH key pair (`~/.ssh/id_rsa` / `id_rsa.pub`)
-
-### DigitalOcean Droplet (default — from $6/mo)
+📖 **[Full deployment guide → infra/README.md](infra/README.md)**
 
 ```bash
-# 1. Initialise Terraform and create your config file
-make -C infra init PROVIDER=do
-# → copies infra/terraform/digitalocean/terraform.tfvars.example
-#   to infra/terraform/digitalocean/terraform.tfvars
-
-# 2. Edit the config — set your DO token and preferences
-#    Key fields:
-#      do_token     = "your_digitalocean_personal_access_token"
-#      region       = "ams3"          # ams3 | nyc3 | sgp1 | lon1 | fra1
-#      droplet_size = "s-1vcpu-1gb"   # $6/mo  (bump to s-1vcpu-2gb if needed)
-nano infra/terraform/digitalocean/terraform.tfvars
-
-# 3. Preview what will be created
-make -C infra plan PROVIDER=do
-
-# 4. Provision the droplet (~30 sec to create, ~3 min to bootstrap)
-make -C infra provision PROVIDER=do
-
-# 5. Watch the first-boot bootstrap log
-make -C infra logs-bootstrap PROVIDER=do
+# Quick start (DigitalOcean)
+make -C infra init && make -C infra provision
 ```
-
-Once bootstrap completes:
-
-| Service | URL |
-|---------|-----|
-| OpenClaw UI | `http://<SERVER_IP>:3000` |
-| ClawHost Core API | `http://<SERVER_IP>:8080` |
-| SSH | `ssh root@<SERVER_IP>` |
-
-### Hetzner Cloud (from ~€3.79/mo)
-
-```bash
-make -C infra init PROVIDER=hetzner
-# edit infra/terraform/terraform.tfvars  (set hetzner_api_token)
-make -C infra provision PROVIDER=hetzner
-```
-
-### Day-2 Operations
-
-```bash
-# SSH into the server
-make -C infra ssh
-
-# Deploy latest code (git pull + rebuild + restart)
-make -C infra deploy
-
-# Tail ClawHost Core API logs
-make -C infra logs
-
-# Issue a Let's Encrypt TLS cert (requires a domain pointing at the server)
-make -C infra ssl DOMAIN=yourdomain.com
-
-# Tear everything down
-make -C infra destroy
-```
-
-> All infra files live in [`infra/`](infra/). The same cloud-init bootstrap script is shared across providers.
 
 ---
 
