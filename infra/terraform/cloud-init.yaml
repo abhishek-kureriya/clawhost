@@ -26,6 +26,7 @@ write_files:
     content: |
       #!/usr/bin/env bash
       set -euo pipefail
+      export DEBIAN_FRONTEND=noninteractive
       LOG=/var/log/clawhost-bootstrap.log
       exec > >(tee -a "$LOG") 2>&1
       echo "=== ClawHost Bootstrap Started: $(date) ==="
@@ -83,7 +84,7 @@ write_files:
       # 4. Clone & build ClawHost
       # -----------------------------------------------------------------------
       echo "[4/7] Cloning repo..."
-      if [ -d "$INSTALL_DIR" ]; then
+      if [ -d "$INSTALL_DIR/.git" ]; then
         cd "$INSTALL_DIR" && git pull
       else
         git clone "$REPO_URL" "$INSTALL_DIR"
@@ -100,7 +101,7 @@ write_files:
       echo "[5/7] Installing OpenClaw..."
 
       if [ -z "$OPENCLAW_REPO" ]; then
-        echo "  WARNING: openclaw_repo_url not set — skipping OpenClaw install."
+        echo "  WARNING: openclaw_repo_url not set -- skipping OpenClaw install."
         echo "  Set OPENCLAW_REPO in your terraform.tfvars and re-run bootstrap."
       else
         # Clone or update OpenClaw source
@@ -143,8 +144,8 @@ write_files:
       ufw --force enable
 
       echo "=== Bootstrap Complete: $(date) ==="
-      echo "OpenClaw UI  → http://$(curl -s ifconfig.me):3000"
-      echo "Core API     → http://$(curl -s ifconfig.me):8080"
+      echo "OpenClaw UI  -> http://$(curl -s ifconfig.me):3000"
+      echo "Core API     -> http://$(curl -s ifconfig.me):8080"
 
   - path: /opt/clawhost/app/infra/systemd/clawhost-core.service
     permissions: "0644"

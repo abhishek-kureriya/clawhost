@@ -13,6 +13,11 @@ PROVIDER ?= do
 ifeq ($(PROVIDER),do)
   TF_DIR := terraform/digitalocean
   PROVIDER_LABEL := DigitalOcean
+  # Auto-read token from doctl config so Terraform never prompts for it.
+  # Reads the last access-token: value (works for both flat and multi-context configs).
+  export TF_VAR_do_token ?= $(shell \
+    awk '/access-token:/{v=$$2} END{if(v!="")print v}' \
+      $(HOME)/.config/doctl/config.yaml 2>/dev/null)
 else ifeq ($(PROVIDER),hetzner)
   TF_DIR := terraform
   PROVIDER_LABEL := Hetzner Cloud
@@ -23,7 +28,7 @@ endif
 # Auto-detect server IP from Terraform output (after provisioning)
 SERVER_IP := $(shell cd $(TF_DIR) && terraform output -raw server_ip 2>/dev/null)
 
-.PHONY: help do-login do-check init plan provision destroy ssh deploy logs logs-bootstrap logs-openclaw status ssl clean-tf
+.PHONY: help do-login do-check terraform-install init plan provision destroy ssh deploy logs logs-bootstrap logs-openclaw status ssl clean-tf
 
 # ─────────────────────────────────────────────
 # Help
@@ -34,6 +39,7 @@ help:
 	@echo "  ─────────────────────────────────"
 	@echo "  PROVIDER=do (default) | PROVIDER=hetzner"
 	@echo ""
+	@echo "  make terraform-install      Install Terraform CLI (Linux/macOS)"
 	@echo "  make init                   Init Terraform providers"
 	@echo "  make plan                   Preview infrastructure changes"
 	@echo "  make provision              Create/update droplet ($(PROVIDER_LABEL))"
@@ -65,17 +71,22 @@ do-login:
 		echo "  Docs  : https://docs.digitalocean.com/reference/doctl/how-to/install/"; \
 		exit 1; \
 	}
-	@if [ -n "$$DO_TOKEN" ]; then \
+	@if doctl account get >/dev/null 2>&1; then \
+		echo "==> Already authenticated with DigitalOcean."; \
+		echo "    Run 'make do-check' to see your account details."; \
+		echo "    To re-authenticate, run: doctl auth init"; \
+	elif [ -n "$$DO_TOKEN" ]; then \
 		echo "==> Authenticating doctl with DO_TOKEN env var..."; \
 		doctl auth init --access-token "$$DO_TOKEN"; \
+		echo ""; \
+		echo "Login successful. Run 'make do-check' to verify."; \
 	else \
-		echo "==> Authenticating doctl interactively..."; \
-		echo "    Paste your DigitalOcean Personal Access Token when prompted."; \
-		echo "    (Create one at https://cloud.digitalocean.com/account/api/tokens)"; \
+		echo "==> Authenticating doctl..."; \
+		echo "    Get a token at: https://cloud.digitalocean.com/account/api/tokens"; \
 		doctl auth init; \
+		echo ""; \
+		echo "Login successful. Run 'make do-check' to verify."; \
 	fi
-	@echo ""
-	@echo "Login successful. Run 'make do-check' to verify."
 
 # Show the authenticated account and a summary of existing resources.
 do-check:
@@ -90,14 +101,43 @@ do-check:
 	@doctl compute ssh-key list --format "ID,Name,FingerPrint"
 
 # ─────────────────────────────────────────────
+# Terraform install
+# ─────────────────────────────────────────────
+terraform-install:
+	@echo "==> Installing Terraform..."
+	@TERRAFORM_VERSION=$$(curl -fsSL https://checkpoint-api.hashicorp.com/v1/check/terraform | grep -o '"current_version":"[^"]*"' | cut -d'"' -f4); \
+	if [ -z "$$TERRAFORM_VERSION" ]; then TERRAFORM_VERSION="1.8.5"; fi; \
+	OS=$$(uname -s | tr '[:upper:]' '[:lower:]'); \
+	ARCH=$$(uname -m); \
+	case "$$ARCH" in \
+		x86_64)  ARCH=amd64 ;; \
+		aarch64|arm64) ARCH=arm64 ;; \
+		*)       echo "Unsupported arch: $$ARCH"; exit 1 ;; \
+	esac; \
+	ZIP="terraform_$${TERRAFORM_VERSION}_$${OS}_$${ARCH}.zip"; \
+	URL="https://releases.hashicorp.com/terraform/$${TERRAFORM_VERSION}/$$ZIP"; \
+	echo "  Downloading $$URL"; \
+	curl -fsSL "$$URL" -o "/tmp/$$ZIP"; \
+	unzip -o "/tmp/$$ZIP" -d /tmp/terraform-bin; \
+	sudo install -m 0755 /tmp/terraform-bin/terraform /usr/local/bin/terraform; \
+	rm -rf "/tmp/$$ZIP" /tmp/terraform-bin
+	@echo "  Terraform $$(terraform version -json | grep -o '"terraform_version":"[^"]*"' | cut -d'"' -f4) installed at $$(which terraform)"
+
+# ─────────────────────────────────────────────
 # Terraform
 # ─────────────────────────────────────────────
 init:
+	@command -v terraform >/dev/null 2>&1 || { \
+		echo "terraform not found. Run 'make terraform-install' to install it."; \
+		exit 1; \
+	}
 	@echo "==> Initialising Terraform for $(PROVIDER_LABEL)..."
 	@[ -f $(TF_DIR)/terraform.tfvars ] || { \
 		cp $(TF_DIR)/terraform.tfvars.example $(TF_DIR)/terraform.tfvars; \
 		echo "  ✏  Edit $(TF_DIR)/terraform.tfvars before running 'make provision'"; \
 	}
+	@# Remove any literal do_token line — the Makefile injects it via TF_VAR_do_token from doctl.
+	@sed -i 's/^do_token\s*=.*/#&  # auto-set from doctl by Makefile/' $(TF_DIR)/terraform.tfvars 2>/dev/null || true
 	cd $(TF_DIR) && terraform init
 
 plan:

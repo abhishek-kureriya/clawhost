@@ -17,7 +17,7 @@ provider "digitalocean" {
 # ---------------------------------------------------------------------------
 resource "digitalocean_ssh_key" "clawhost" {
   name       = "${var.project_name}-key"
-  public_key = file(var.ssh_public_key_path)
+  public_key = file(pathexpand(var.ssh_public_key_path))
 }
 
 # ---------------------------------------------------------------------------

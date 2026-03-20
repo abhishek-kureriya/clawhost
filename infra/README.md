@@ -139,7 +139,7 @@ Key fields:
 | `do_token` | DigitalOcean personal access token | `"dop_v1_..."` |
 | `region` | Datacenter region | `"ams3"` |
 | `droplet_size` | Droplet slug | `"s-1vcpu-1gb"` ($6/mo) |
-| `ssh_public_key_path` | Path to your public key | `"~/.ssh/id_rsa.pub"` |
+| `ssh_public_key_path` | Path to your public key | `"~/.ssh/id_ed25519.pub"` |
 | `allowed_ssh_ips` | IPs allowed to SSH | `["1.2.3.4/32"]` |
 | `openclaw_repo_url` | **OpenClaw Git repo to clone & build** | `"https://github.com/your-org/openclaw.git"` |
 

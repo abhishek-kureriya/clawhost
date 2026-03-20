@@ -1,7 +1,10 @@
 # Copy this file to terraform.tfvars and fill in real values.
 # terraform.tfvars is gitignored — never commit your real token.
 
-do_token            = "your_digitalocean_personal_access_token"
+# do_token is auto-read from doctl's config by the Makefile (TF_VAR_do_token).
+# Uncomment and set manually only if you are NOT using doctl or running Terraform
+# directly (outside of make):
+# do_token = "dop_v1_..."
 project_name        = "clawhost"
 environment         = "production"
 
@@ -16,7 +19,7 @@ region              = "ams3"
 
 enable_backups      = false
 
-ssh_public_key_path = "~/.ssh/id_rsa.pub"
+ssh_public_key_path = "~/.ssh/id_ed25519.pub"
 
 # Restrict to your IP in production:
 # allowed_ssh_ips = ["1.2.3.4/32"]
