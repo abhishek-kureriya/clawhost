@@ -1,6 +1,6 @@
 # ClawHost Makefile
 
-.PHONY: build run build-core run-core test clean docker-build docker-up docker-down dev lint lint-install format fmt-check
+.PHONY: build run build-core run-core build-hosting run-hosting test clean docker-build docker-up docker-down dev lint lint-install format fmt-check
 
 # Go related variables
 GOCMD=go
@@ -23,9 +23,16 @@ build:
 build-core:
 	cd core && $(GOBUILD) -o ../$(BINARY_NAME)-core -v ./cmd
 
+build-hosting:
+	$(GOBUILD) -o $(BINARY_NAME)-hosting -v ./hosting-service/cmd
+
 run-core:
 	cd core && $(GOBUILD) -o ../$(BINARY_NAME)-core -v ./cmd
 	./$(BINARY_NAME)-core
+
+run-hosting:
+	$(GOBUILD) -o $(BINARY_NAME)-hosting -v ./hosting-service/cmd
+	./$(BINARY_NAME)-hosting
 
 # Run the application
 run:
@@ -111,7 +118,9 @@ help:
 	@echo "Available commands:"
 	@echo "  build      - Build the application"
 	@echo "  build-core - Build core API server binary"
+	@echo "  build-hosting - Build hosting-service API server binary"
 	@echo "  run-core   - Build and run core API server"
+	@echo "  run-hosting- Build and run hosting-service API server"
 	@echo "  run        - Build and run the application"
 	@echo "  dev        - Run with hot reload (requires air)"
 	@echo "  test       - Run tests"

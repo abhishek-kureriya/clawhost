@@ -11,11 +11,16 @@ Use this mode if you want a simple, self-managed setup on your own machine with 
 git clone https://github.com/abhishek-kureriya/clawhost.git
 cd clawhost
 
-# 2) Build and run OSS core
-make build
-./clawhost
+# 2) Run core API (Terminal 1)
+make run-core
 
-# 3) Verify
+# 3) Build CLI and initialize deployment (Terminal 2)
+make build
+./clawhost init
+./clawhost deploy
+./clawhost status --all
+
+# 4) Verify
 curl http://localhost:8080/health
 # Open: http://localhost:8080/dashboard
 ```

@@ -10,28 +10,29 @@ It does **not** require the commercial `hosting-service/` code and does **not** 
 - Use the basic local dashboard
 - Manage local CLI state (profiles, backup, restore)
 
+## Responsibilities
+
+- **CLI (`clawhost`)** handles setup/deploy workflow.
+- **Core API (`make run-core`)** handles monitoring and dashboard.
+
 ## Quick Start (Local Machine)
 
 ```bash
 # 1) Build CLI
 make build
 
-# 2) Run core API + basic dashboard
-./clawhost
-
-# 3) Check health
-
-
-# 4) Open dashboard
-# http://localhost:8080/dashboard
-```
-
-curl http://localhost:8080/health
-
-You can also run the core server directly:
-curl http://localhost:8080/health
-```bash
+# 2) Run Core API + dashboard
 make run-core
+
+# 3) In another terminal, run setup/deploy with CLI
+./clawhost init
+./clawhost deploy
+
+# 4) Check health
+curl http://localhost:8080/health
+
+# 5) Open dashboard
+# http://localhost:8080/dashboard
 ```
 
 ## OSS Commands (No Cloud Required)

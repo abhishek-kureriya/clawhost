@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -126,15 +127,35 @@ func runInit(args []string) error {
 		fmt.Println("🧙 ClawHost Init Wizard (Local / Self-Managed)")
 		reader := bufio.NewReader(os.Stdin)
 
+		*openclawURL = promptServiceURL(reader, "OpenClaw URL", *openclawURL)
+		if !ensureOpenClawForInit(reader, *openclawURL, openclawStartCmd) {
+			return errors.New("init cancelled before configuration prompts")
+		}
+
 		*name = prompt(reader, "Deployment name", *name)
 		*provider = prompt(reader, "Provider", *provider)
 		*serverType = prompt(reader, "Server type", *serverType)
 		*location = prompt(reader, "Location", *location)
 		*llmProvider = prompt(reader, "LLM provider", *llmProvider)
 		*llmModel = prompt(reader, "LLM model", *llmModel)
-		*apiURL = prompt(reader, "Local API URL", *apiURL)
-		*openclawURL = prompt(reader, "OpenClaw URL", *openclawURL)
-		*openclawStartCmd = prompt(reader, "OpenClaw start command (optional)", *openclawStartCmd)
+		*apiURL = promptServiceURL(reader, "Local API URL", *apiURL)
+	} else {
+		normalizedAPIURL, err := normalizeServiceURL(*apiURL)
+		if err != nil {
+			return fmt.Errorf("invalid --api-url: %w", err)
+		}
+		*apiURL = normalizedAPIURL
+
+		normalizedOpenClawURL, err := normalizeServiceURL(*openclawURL)
+		if err != nil {
+			return fmt.Errorf("invalid --openclaw-url: %w", err)
+		}
+		*openclawURL = normalizedOpenClawURL
+
+		if !waitForHealthyEndpoint(strings.TrimRight(*openclawURL, "/")+"/health", 2*time.Second) {
+			fmt.Printf("⚠ OpenClaw is not reachable at %s/health\n", strings.TrimRight(*openclawURL, "/"))
+			fmt.Println("Continue init, then install/start OpenClaw before running `clawhost deploy`.")
+		}
 	}
 
 	configPath := ".clawhost.yaml"
@@ -573,6 +594,116 @@ func prompt(reader *bufio.Reader, label, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+func ensureOpenClawForInit(reader *bufio.Reader, openclawURL string, openclawStartCmd *string) bool {
+	const placeholderOpenClawCmd = "cd /path/to/openclaw && docker compose up -d"
+
+	normalizedURL, err := normalizeServiceURL(openclawURL)
+	if err != nil {
+		fmt.Printf("⚠ OpenClaw URL is invalid: %v\n", err)
+		return confirmContinueWithoutOpenClaw(reader)
+	}
+	openclawURL = normalizedURL
+
+	healthURL := strings.TrimRight(openclawURL, "/") + "/health"
+	if waitForHealthyEndpoint(healthURL, 3*time.Second) {
+		fmt.Printf("✅ OpenClaw detected at %s\n", healthURL)
+		return true
+	}
+
+	fmt.Printf("⚠ OpenClaw not detected at %s\n", healthURL)
+	fmt.Println("If OpenClaw is not installed/running, provide or run a command to install/start it now.")
+
+	defaultCmd := strings.TrimSpace(*openclawStartCmd)
+	if defaultCmd == "" {
+		defaultCmd = placeholderOpenClawCmd
+	}
+	installOrStartCmd := strings.TrimSpace(*openclawStartCmd)
+	if installOrStartCmd == "" {
+		installOrStartCmd = prompt(reader, "OpenClaw install/start command", defaultCmd)
+	}
+	if installOrStartCmd == placeholderOpenClawCmd || strings.Contains(installOrStartCmd, "/path/to/openclaw") {
+		fmt.Println("Skipping command execution because the command still uses placeholder path '/path/to/openclaw'.")
+		fmt.Println("Set a real path (or run manually) before `clawhost deploy`.")
+		return confirmContinueWithoutOpenClaw(reader)
+	}
+	if strings.TrimSpace(installOrStartCmd) == "" {
+		fmt.Println("Skipping command execution. You can install/start OpenClaw later before deploy.")
+		return confirmContinueWithoutOpenClaw(reader)
+	}
+
+	if strings.TrimSpace(*openclawStartCmd) == "" || *openclawStartCmd == placeholderOpenClawCmd {
+		*openclawStartCmd = installOrStartCmd
+	}
+
+	runNow := strings.ToLower(strings.TrimSpace(prompt(reader, "Run this command now? (yes/no)", "no")))
+	if runNow != "y" && runNow != "yes" {
+		fmt.Println("Command saved. Run it manually, then continue with `clawhost deploy`.")
+		return confirmContinueWithoutOpenClaw(reader)
+	}
+
+	fmt.Printf("▶ Running: %s\n", installOrStartCmd)
+	cmd := exec.Command("sh", "-lc", installOrStartCmd)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Printf("⚠ Command failed: %v\n", err)
+		return confirmContinueWithoutOpenClaw(reader)
+	}
+
+	if waitForHealthyEndpoint(healthURL, 60*time.Second) {
+		fmt.Printf("✅ OpenClaw is now reachable at %s\n", healthURL)
+		return true
+	}
+
+	fmt.Printf("⚠ OpenClaw still not reachable at %s\n", healthURL)
+	return confirmContinueWithoutOpenClaw(reader)
+}
+
+func confirmContinueWithoutOpenClaw(reader *bufio.Reader) bool {
+	answer := strings.ToLower(strings.TrimSpace(prompt(reader, "Continue init without OpenClaw running? (yes/no)", "no")))
+	if answer == "y" || answer == "yes" {
+		fmt.Println("Continuing init. Verify OpenClaw installation before deploy.")
+		return true
+	}
+	fmt.Println("Init cancelled. Start OpenClaw and rerun `clawhost init`.")
+	return false
+}
+
+func promptServiceURL(reader *bufio.Reader, label, defaultValue string) string {
+	for {
+		candidate := prompt(reader, label, defaultValue)
+		normalized, err := normalizeServiceURL(candidate)
+		if err == nil {
+			return normalized
+		}
+		fmt.Printf("Invalid URL: %v\n", err)
+	}
+}
+
+func normalizeServiceURL(raw string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", errors.New("value cannot be empty")
+	}
+
+	if !strings.Contains(value, "://") {
+		value = "http://" + value
+	}
+
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", errors.New("scheme must be http or https")
+	}
+	if parsed.Host == "" {
+		return "", errors.New("host is required")
+	}
+
+	return strings.TrimRight(parsed.String(), "/"), nil
 }
 
 func printStatusLine(d deployment) {
