@@ -3,6 +3,55 @@
 Terraform-based provisioning for ClawHost + OpenClaw on cloud servers.
 Supports **DigitalOcean** (default) and **Hetzner Cloud** from a single shared bootstrap.
 
+---
+
+## How It Works — End to End
+
+Running `make provision` from your local machine triggers this full flow:
+
+```
+Your Machine                 DigitalOcean / Hetzner          New Server
+─────────────────            ──────────────────────          ──────────────────────────────
+make do-login           →    Authenticates doctl CLI
+make provision          →    Terraform creates:
+                               • SSH key (from ~/.ssh/id_rsa.pub)
+                               • Firewall (ports 22, 80, 443)
+                               • Droplet (Ubuntu 24.04)
+                               • Injects cloud-init.yaml script
+                                                         ↓  First boot runs cloud-init:
+                                                            1. apt update + upgrade
+                                                            2. Install Docker + Compose
+                                                            3. Install Node.js 20 (for npx MCP)
+                                                            4. Install Go 1.23
+                                                            5. git clone this repo
+                                                            6. go build → clawhost-core binary
+                                                            7. docker compose up →
+                                                                 PostgreSQL
+                                                                 OpenClaw UI  (:3000)
+                                                                 Nginx        (:80)
+                                                            8. systemd service for clawhost-core (:8080)
+                                                            9. UFW firewall enabled
+make logs-bootstrap     →                             ←  tail /var/log/clawhost-bootstrap.log
+                                                            (watch progress live)
+```
+
+**After ~3 minutes you have:**
+
+| What | Where |
+|------|-------|
+| OpenClaw AI UI | `http://<IP>:3000` |
+| ClawHost Core API | `http://<IP>:8080` |
+| PostgreSQL | internal, port 5432 |
+| SSH access | `ssh root@<IP>` |
+
+**Updating the server later** (`make deploy`) re-runs:
+1. `git pull` — gets latest code
+2. `go build` — rebuilds the binary
+3. `systemctl restart clawhost-core` — applies changes
+4. `docker compose pull && up -d` — updates containers
+
+---
+
 ```
 infra/
 ├── Makefile                            ← all commands (PROVIDER=do|hetzner)
