@@ -124,6 +124,9 @@ func (s *CoreServer) SetupRoutes() {
 		// Provisioning
 		v1.POST("/provision", s.provisionInstance)
 		v1.GET("/provision/status/:job_id", s.getProvisioningStatus)
+
+		// SSL management
+		v1.POST("/ssl/enable", s.enableSSL)
 	}
 
 	s.addActivity("System started")
@@ -391,6 +394,133 @@ func (s *CoreServer) runLocalProvision(job *ProvisionJob, req ProvisionRequest) 
 	job.CompletedAt = &now
 	s.jobsMu.Unlock()
 	s.addActivity(fmt.Sprintf("Provision completed: %s", job.ID))
+}
+
+// enableSSL handles POST /api/v1/ssl/enable
+// Stops nginx, obtains/renews certs via certbot standalone, rewrites nginx.conf, restarts nginx.
+func (s *CoreServer) enableSSL(c *gin.Context) {
+	var req struct {
+		APIDomain string `json:"api_domain"`
+		APPDomain string `json:"app_domain"`
+		Email     string `json:"email"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "details": err.Error()})
+		return
+	}
+	if req.APIDomain == "" || req.APPDomain == "" || req.Email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "api_domain, app_domain, and email are required"})
+		return
+	}
+
+	var logBuf bytes.Buffer
+	runCmd := func(name string, args ...string) error {
+		cmd := exec.Command(name, args...)
+		cmd.Stdout = &logBuf
+		cmd.Stderr = &logBuf
+		return cmd.Run()
+	}
+
+	installDir := "/opt/clawhost/app"
+
+	// Stop nginx so certbot can bind port 80
+	_ = runCmd("docker", "compose", "-f", installDir+"/infra/docker/openclaw.yml", "stop", "nginx")
+
+	// Run certbot for both domains
+	certErrors := []string{}
+	for _, domain := range []string{req.APIDomain, req.APPDomain} {
+		if err := runCmd("certbot", "certonly", "--standalone",
+			"--non-interactive", "--agree-tos",
+			"-m", req.Email,
+			"-d", domain,
+			"--keep-until-expiring",
+		); err != nil {
+			certErrors = append(certErrors, fmt.Sprintf("%s: %v", domain, err))
+		}
+	}
+
+	if len(certErrors) > 0 {
+		// Restart nginx even on failure so the site stays up
+		_ = runCmd("docker", "compose", "-f", installDir+"/infra/docker/openclaw.yml", "start", "nginx")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":  "certbot failed for some domains",
+			"errors": certErrors,
+			"log":    logBuf.String(),
+		})
+		return
+	}
+
+	// Write SSL nginx config
+	nginxConf := fmt.Sprintf(`upstream core_api { server host.docker.internal:8080; }
+upstream openclaw  { server openclaw:8080; }
+
+server {
+    listen 80;
+    server_name %s;
+    return 301 https://$host$request_uri;
+}
+server {
+    listen 443 ssl;
+    server_name %s;
+    ssl_certificate     /etc/letsencrypt/live/%s/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/%s/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    location / {
+        proxy_pass         http://core_api;
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+}
+
+server {
+    listen 80;
+    server_name %s;
+    return 301 https://$host$request_uri;
+}
+server {
+    listen 443 ssl;
+    server_name %s;
+    ssl_certificate     /etc/letsencrypt/live/%s/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/%s/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    location / {
+        proxy_pass         http://openclaw;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade $http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host $host;
+        proxy_set_header   X-Real-IP $remote_addr;
+        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+    }
+}
+`,
+		req.APIDomain, req.APIDomain, req.APIDomain, req.APIDomain,
+		req.APPDomain, req.APPDomain, req.APPDomain, req.APPDomain,
+	)
+
+	if err := os.WriteFile(installDir+"/infra/nginx/nginx.conf", []byte(nginxConf), 0644); err != nil {
+		_ = runCmd("docker", "compose", "-f", installDir+"/infra/docker/openclaw.yml", "start", "nginx")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to write nginx config: " + err.Error()})
+		return
+	}
+
+	// Restart nginx with new config
+	_ = runCmd("docker", "compose", "-f", installDir+"/infra/docker/openclaw.yml", "start", "nginx")
+
+	s.addActivity(fmt.Sprintf("SSL enabled for %s and %s", req.APIDomain, req.APPDomain))
+	c.JSON(http.StatusOK, gin.H{
+		"status":     "ssl_enabled",
+		"api_domain": req.APIDomain,
+		"app_domain": req.APPDomain,
+		"api_url":    "https://" + req.APIDomain,
+		"app_url":    "https://" + req.APPDomain,
+		"log":        logBuf.String(),
+	})
 }
 
 // Start starts the core API server

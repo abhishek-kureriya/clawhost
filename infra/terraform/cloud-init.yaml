@@ -36,6 +36,9 @@ write_files:
       NODE_VERSION="${node_version}"
       INSTALL_DIR="/opt/clawhost/app"
       GO_DIR="/usr/local/go"
+      API_DOMAIN="${api_domain}"
+      APP_DOMAIN="${app_domain}"
+      LE_EMAIL="${letsencrypt_email}"
 
       # -----------------------------------------------------------------------
       # 1. Docker
@@ -115,9 +118,147 @@ write_files:
       ufw allow 443/tcp
       ufw --force enable
 
+      # -----------------------------------------------------------------------
+      # Write nginx config and attempt SSL
+      # (nginx Docker container starts later via POST /api/v1/provision)
+      # -----------------------------------------------------------------------
+      NGINX_CONF="$INSTALL_DIR/infra/nginx/nginx.conf"
+      mkdir -p "$INSTALL_DIR/infra/nginx"
+
+      if [ -n "$API_DOMAIN" ] && [ -n "$APP_DOMAIN" ]; then
+        echo "Writing nginx config for $API_DOMAIN and $APP_DOMAIN..."
+
+        # Attempt certbot while port 80 is free (Docker nginx not running yet)
+        SSL_API=0
+        SSL_APP=0
+        if [ -n "$LE_EMAIL" ]; then
+          echo "  Attempting SSL via Let's Encrypt..."
+          certbot certonly --standalone --non-interactive --agree-tos \
+            -m "$LE_EMAIL" -d "$API_DOMAIN" && SSL_API=1 || true
+          certbot certonly --standalone --non-interactive --agree-tos \
+            -m "$LE_EMAIL" -d "$APP_DOMAIN" && SSL_APP=1 || true
+        fi
+
+        # Build nginx server blocks
+        API_SSL_BLOCK=""
+        APP_SSL_BLOCK=""
+
+        if [ $SSL_API -eq 1 ]; then
+          API_SSL_BLOCK=$(cat <<SSLEOF
+server {
+    listen 80;
+    server_name $API_DOMAIN;
+    return 301 https://\$host\$request_uri;
+}
+server {
+    listen 443 ssl;
+    server_name $API_DOMAIN;
+    ssl_certificate     /etc/letsencrypt/live/$API_DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$API_DOMAIN/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    location / {
+        proxy_pass         http://core_api;
+        proxy_set_header   Host \$host;
+        proxy_set_header   X-Real-IP \$remote_addr;
+        proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
+}
+SSLEOF
+)
+        else
+          API_SSL_BLOCK=$(cat <<HTTPEOF
+server {
+    listen 80;
+    server_name $API_DOMAIN;
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    location / {
+        proxy_pass         http://core_api;
+        proxy_set_header   Host \$host;
+        proxy_set_header   X-Real-IP \$remote_addr;
+        proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_read_timeout 60s;
+    }
+}
+HTTPEOF
+)
+        fi
+
+        if [ $SSL_APP -eq 1 ]; then
+          APP_SSL_BLOCK=$(cat <<SSLEOF2
+server {
+    listen 80;
+    server_name $APP_DOMAIN;
+    return 301 https://\$host\$request_uri;
+}
+server {
+    listen 443 ssl;
+    server_name $APP_DOMAIN;
+    ssl_certificate     /etc/letsencrypt/live/$APP_DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$APP_DOMAIN/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    location / {
+        proxy_pass         http://openclaw;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade \$http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host \$host;
+        proxy_set_header   X-Real-IP \$remote_addr;
+        proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 300s;
+    }
+}
+SSLEOF2
+)
+        else
+          APP_SSL_BLOCK=$(cat <<HTTPEOF2
+server {
+    listen 80;
+    server_name $APP_DOMAIN;
+    location /.well-known/acme-challenge/ { root /var/www/certbot; }
+    location / {
+        proxy_pass         http://openclaw;
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade \$http_upgrade;
+        proxy_set_header   Connection "upgrade";
+        proxy_set_header   Host \$host;
+        proxy_set_header   X-Real-IP \$remote_addr;
+        proxy_set_header   X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_read_timeout 300s;
+    }
+}
+HTTPEOF2
+)
+        fi
+
+        cat > "$NGINX_CONF" <<NGINXEOF
+upstream core_api { server host.docker.internal:8080; }
+upstream openclaw  { server openclaw:8080; }
+
+$API_SSL_BLOCK
+
+$APP_SSL_BLOCK
+NGINXEOF
+
+        [ $SSL_API -eq 1 ] && echo "  SSL enabled for $API_DOMAIN" || echo "  WARNING: SSL not obtained for $API_DOMAIN. Run POST /api/v1/ssl/enable after DNS propagates."
+        [ $SSL_APP -eq 1 ] && echo "  SSL enabled for $APP_DOMAIN" || echo "  WARNING: SSL not obtained for $APP_DOMAIN. Run POST /api/v1/ssl/enable after DNS propagates."
+      else
+        echo "No domains configured -- keeping default nginx config (IP-based)."
+      fi
+
       echo "=== Bootstrap Complete: $(date) ==="
-      echo "Core API -> http://$(curl -s ifconfig.me):8080"
-      echo "Use POST /api/v1/provision with provider=local to install OpenClaw"
+      SERVER_IP=$(curl -s ifconfig.me)
+      if [ -n "$API_DOMAIN" ]; then
+        echo "Core API -> https://$API_DOMAIN (or http://$SERVER_IP:8080)"
+        echo "OpenClaw -> https://$APP_DOMAIN (after provisioning)"
+      else
+        echo "Core API -> http://$SERVER_IP:8080"
+        echo "OpenClaw -> http://$SERVER_IP:3000 (after provisioning)"
+      fi
+      echo "To install OpenClaw: POST /api/v1/provision"
+      echo "To enable/renew SSL: POST /api/v1/ssl/enable"
 
   - path: /etc/systemd/system/clawhost-core.service
     permissions: "0644"

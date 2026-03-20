@@ -84,10 +84,13 @@ resource "digitalocean_firewall" "clawhost" {
 # ---------------------------------------------------------------------------
 locals {
   user_data = templatefile("${path.module}/../cloud-init.yaml", {
-    repo_url     = var.repo_url
-    project_name = var.project_name
-    go_version   = var.go_version
-    node_version = var.node_version
+    repo_url           = var.repo_url
+    project_name       = var.project_name
+    go_version         = var.go_version
+    node_version       = var.node_version
+    api_domain         = var.api_domain
+    app_domain         = var.app_domain
+    letsencrypt_email  = var.letsencrypt_email
   })
 }
 

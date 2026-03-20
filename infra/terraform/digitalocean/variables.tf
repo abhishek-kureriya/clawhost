@@ -81,3 +81,23 @@ variable "repo_url" {
   type        = string
   default     = "https://github.com/abhishek-kureriya/clawhost.git"
 }
+
+# ---- Domains --------------------------------------------------------------
+
+variable "api_domain" {
+  description = "Domain for the ClawHost Core API (e.g. api.bharatfinx.com). Leave empty to use server IP."
+  type        = string
+  default     = ""
+}
+
+variable "app_domain" {
+  description = "Domain for the OpenClaw UI (e.g. app.bharatfinx.com). Leave empty to use server IP."
+  type        = string
+  default     = ""
+}
+
+variable "letsencrypt_email" {
+  description = "Email address for Let's Encrypt SSL certificate registration."
+  type        = string
+  default     = ""
+}
