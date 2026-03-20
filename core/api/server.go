@@ -1,13 +1,39 @@
 package api
 
 import (
+	"bytes"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"os/exec"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
+
+// ProvisionRequest is the payload for POST /api/v1/provision
+type ProvisionRequest struct {
+	Provider       string `json:"provider"` // "local" | "digitalocean" | "hetzner"
+	OpenClawRepo   string `json:"openclaw_repo_url"`
+	DBPassword     string `json:"db_password"`
+	WebUISecretKey string `json:"webui_secret_key"`
+	OpenAIAPIKey   string `json:"openai_api_key"`
+	OpenAIBaseURL  string `json:"openai_api_base_url"`
+}
+
+// ProvisionJob tracks the state of an async provisioning job
+type ProvisionJob struct {
+	ID          string
+	Status      string // "running" | "completed" | "failed"
+	CurrentStep string
+	Progress    int
+	Error       string
+	Log         string
+	StartedAt   time.Time
+	CompletedAt *time.Time
+}
 
 // CoreServer represents the core ClawHost API server
 type CoreServer struct {
@@ -19,6 +45,9 @@ type CoreServer struct {
 	lastRestartAt  time.Time
 	activityMu     sync.RWMutex
 	recentActivity []string
+
+	jobsMu sync.RWMutex
+	jobs   map[string]*ProvisionJob
 }
 
 func NewRouter(logger *slog.Logger) *gin.Engine {
@@ -63,6 +92,7 @@ func NewCoreServer(router *gin.Engine, logger *slog.Logger, port string) *CoreSe
 		logger:         logger,
 		startedAt:      time.Now().UTC(),
 		recentActivity: make([]string, 0, 50),
+		jobs:           make(map[string]*ProvisionJob),
 	}
 }
 
@@ -91,7 +121,8 @@ func (s *CoreServer) SetupRoutes() {
 		v1.GET("/instances/:id/health", s.getInstanceHealth)
 		v1.GET("/instances/:id/logs", s.getInstanceLogs)
 
-		// Provisioning status (core functionality)
+		// Provisioning
+		v1.POST("/provision", s.provisionInstance)
 		v1.GET("/provision/status/:job_id", s.getProvisioningStatus)
 	}
 
@@ -175,15 +206,191 @@ func (s *CoreServer) getInstanceLogs(c *gin.Context) {
 func (s *CoreServer) getProvisioningStatus(c *gin.Context) {
 	jobID := c.Param("job_id")
 
-	// Mock provisioning status
-	c.JSON(http.StatusOK, gin.H{
-		"job_id":       jobID,
-		"status":       "completed",
-		"progress":     100,
-		"current_step": "Instance ready",
-		"started_at":   "2026-03-18T10:00:00Z",
-		"completed_at": "2026-03-18T10:15:00Z",
+	s.jobsMu.RLock()
+	job, ok := s.jobs[jobID]
+	s.jobsMu.RUnlock()
+
+	if !ok {
+		c.JSON(http.StatusNotFound, gin.H{"error": "job not found"})
+		return
+	}
+
+	res := gin.H{
+		"job_id":       job.ID,
+		"status":       job.Status,
+		"progress":     job.Progress,
+		"current_step": job.CurrentStep,
+		"started_at":   job.StartedAt,
+	}
+	if job.CompletedAt != nil {
+		res["completed_at"] = job.CompletedAt
+	}
+	if job.Error != "" {
+		res["error"] = job.Error
+	}
+	if job.Log != "" {
+		res["log"] = job.Log
+	}
+	c.JSON(http.StatusOK, res)
+}
+
+// provisionInstance handles POST /api/v1/provision
+func (s *CoreServer) provisionInstance(c *gin.Context) {
+	var req ProvisionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "details": err.Error()})
+		return
+	}
+
+	if req.Provider == "" {
+		req.Provider = "local"
+	}
+
+	if req.OpenClawRepo == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "openclaw_repo_url is required"})
+		return
+	}
+	if req.DBPassword == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "db_password is required"})
+		return
+	}
+	if req.WebUISecretKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "webui_secret_key is required"})
+		return
+	}
+
+	if req.Provider != "local" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("provider %q not yet supported; use \"local\"", req.Provider)})
+		return
+	}
+
+	jobID := fmt.Sprintf("job-%d", time.Now().UnixNano())
+	job := &ProvisionJob{
+		ID:          jobID,
+		Status:      "running",
+		CurrentStep: "starting",
+		Progress:    0,
+		StartedAt:   time.Now().UTC(),
+	}
+	s.jobsMu.Lock()
+	s.jobs[jobID] = job
+	s.jobsMu.Unlock()
+
+	s.addActivity(fmt.Sprintf("Provision started: %s (local)", jobID))
+	go s.runLocalProvision(job, req)
+
+	c.JSON(http.StatusAccepted, gin.H{
+		"job_id":     jobID,
+		"status":     "running",
+		"status_url": "/api/v1/provision/status/" + jobID,
 	})
+}
+
+// runLocalProvision installs OpenClaw on the same machine via docker compose
+func (s *CoreServer) runLocalProvision(job *ProvisionJob, req ProvisionRequest) {
+	installDir := "/opt/clawhost/app"
+	openclawiDir := "/opt/openclaw"
+
+	setStep := func(step string, progress int) {
+		s.jobsMu.Lock()
+		job.CurrentStep = step
+		job.Progress = progress
+		s.jobsMu.Unlock()
+		s.logger.Info("provision_step", slog.String("job", job.ID), slog.String("step", step))
+	}
+
+	fail := func(err string) {
+		now := time.Now().UTC()
+		s.jobsMu.Lock()
+		job.Status = "failed"
+		job.Error = err
+		job.CompletedAt = &now
+		s.jobsMu.Unlock()
+		s.logger.Error("provision_failed", slog.String("job", job.ID), slog.String("error", err))
+	}
+
+	appendLog := func(line string) {
+		s.jobsMu.Lock()
+		job.Log += line + "\n"
+		s.jobsMu.Unlock()
+	}
+
+	run := func(name string, args ...string) error {
+		cmd := exec.Command(name, args...)
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		cmd.Stderr = &out
+		err := cmd.Run()
+		appendLog(out.String())
+		return err
+	}
+
+	// Step 1: clone or update OpenClaw source
+	setStep("cloning openclaw repo", 10)
+	if _, err := os.Stat(openclawiDir + "/.git"); err == nil {
+		if err := run("git", "-C", openclawiDir, "pull"); err != nil {
+			fail("git pull failed: " + err.Error())
+			return
+		}
+	} else {
+		if err := run("git", "clone", req.OpenClawRepo, openclawiDir); err != nil {
+			fail("git clone failed: " + err.Error())
+			return
+		}
+	}
+
+	// Step 2: build Docker image
+	setStep("building docker image (this may take a few minutes)", 30)
+	if err := run("docker", "build", "-t", "openclaw:latest", openclawiDir); err != nil {
+		fail("docker build failed: " + err.Error())
+		return
+	}
+
+	// Step 3: write .env file
+	setStep("writing environment config", 70)
+	envContent := fmt.Sprintf(
+		"DB_PASSWORD=%s\nWEBUI_SECRET_KEY=%s\nOPENAI_API_KEY=%s\nOPENAI_API_BASE_URL=%s\n",
+		req.DBPassword,
+		req.WebUISecretKey,
+		req.OpenAIAPIKey,
+		func() string {
+			if req.OpenAIBaseURL != "" {
+				return req.OpenAIBaseURL
+			}
+			return "https://api.openai.com/v1"
+		}(),
+	)
+	if err := os.WriteFile(installDir+"/.env", []byte(envContent), 0600); err != nil {
+		fail("writing .env failed: " + err.Error())
+		return
+	}
+
+	// Step 4: docker compose up
+	setStep("starting openclaw stack", 85)
+	cmd := exec.Command(
+		"docker", "compose",
+		"-f", installDir+"/infra/docker/openclaw.yml",
+		"--env-file", installDir+"/.env",
+		"up", "-d",
+	)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	if err := cmd.Run(); err != nil {
+		appendLog(out.String())
+		fail("docker compose up failed: " + err.Error())
+		return
+	}
+	appendLog(out.String())
+
+	now := time.Now().UTC()
+	s.jobsMu.Lock()
+	job.Status = "completed"
+	job.CurrentStep = "OpenClaw is running"
+	job.Progress = 100
+	job.CompletedAt = &now
+	s.jobsMu.Unlock()
+	s.addActivity(fmt.Sprintf("Provision completed: %s", job.ID))
 }
 
 // Start starts the core API server
