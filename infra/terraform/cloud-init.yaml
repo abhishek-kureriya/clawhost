@@ -91,9 +91,10 @@ write_files:
       fi
 
       echo "[4/7] Building ClawHost core..."
-      cd "$INSTALL_DIR"
+      cd "$INSTALL_DIR/core"
       /usr/local/go/bin/go mod download
-      /usr/local/go/bin/go build -o /usr/local/bin/clawhost-core ./core/cmd
+      /usr/local/go/bin/go build -o /usr/local/bin/clawhost-core ./cmd
+      cd "$INSTALL_DIR"
 
       # -----------------------------------------------------------------------
       # 5. Install OpenClaw from source
@@ -128,7 +129,6 @@ write_files:
       # 6. Systemd service for ClawHost Core API
       # -----------------------------------------------------------------------
       echo "[6/7] Configuring systemd..."
-      cp "$INSTALL_DIR/infra/systemd/clawhost-core.service" /etc/systemd/system/
       systemctl daemon-reload
       systemctl enable --now clawhost-core
 
@@ -147,7 +147,7 @@ write_files:
       echo "OpenClaw UI  -> http://$(curl -s ifconfig.me):3000"
       echo "Core API     -> http://$(curl -s ifconfig.me):8080"
 
-  - path: /opt/clawhost/app/infra/systemd/clawhost-core.service
+  - path: /etc/systemd/system/clawhost-core.service
     permissions: "0644"
     content: |
       [Unit]
