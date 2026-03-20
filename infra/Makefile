@@ -87,7 +87,7 @@ do-check:
 	@doctl compute droplet list --format "ID,Name,Status,PublicIPv4,Region,SizeSlug"
 	@echo ""
 	@echo "==> SSH keys on account"
-	@doctl compute ssh-key list --format "ID,Name,Fingerprint"
+	@doctl compute ssh-key list --format "ID,Name,FingerPrint"
 
 # ─────────────────────────────────────────────
 # Terraform
