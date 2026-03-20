@@ -1,10 +1,10 @@
 # MCP Bridge - High-Performance Go Package
 
-A production-grade Go package for managing multiple [Model Context Protocol (MCP)](https://modelcontextprotocol.io) servers and routing AI agent requests to the correct subprocess.
+An open-source Go package for managing multiple [Model Context Protocol (MCP)](https://modelcontextprotocol.io) servers and routing AI agent requests to the correct subprocess.
 
-## 🚀 The "Big 5" Services (Ready-to-Use)
+## 🚀 The "Big 5" Services (Pre-Configured)
 
-The MCP Bridge comes pre-configured with the 5 most popular services. Customers can toggle these in the Marketplace UI:
+The MCP Bridge comes pre-configured with the 5 most popular open-source compatible services:
 
 | Service | Category | Core Tools | Required Env Var |
 |---------|----------|-----------|------------------|
@@ -37,18 +37,18 @@ This "Universal Plug" design means customers can integrate *any* MCP-compatible 
 
 ### Service Manifest System (manifest.go)
 
-The `ServiceManifest` defines how MCP servers are spawned and configured. This is what powers the **Marketplace UI toggles**:
+The `ServiceManifest` defines how MCP servers are spawned and configured. This allows you to easily toggle services on/off:
 
 ```go
 // Load pre-configured Big 5 services
 manifest := mcp.BigFiveManifest()
 
-// Define which services are enabled (toggled in UI)
+// Define which services are enabled
 enabled := map[string]bool{
     "github":       true,
     "slack":        true,
     "postgres":     true,
-    "google-drive": false,  // User didn't enable this
+    "google-drive": false,  // Disabled for now
     "tavily":       true,
 }
 
@@ -63,8 +63,8 @@ mcp.StartFromManifest(bridge, manifest, enabled, logger)
 - **Command & Args**: How to spawn the MCP server (e.g., `npx @slack/mcp-server-slack`)
 - **EnvVars**: Required environment variables
 - **Optional flag**: Whether the service can be skipped if env vars are missing
-- **Category**: For Marketplace UI grouping (communication, database, cloud, dev, search)
-- **ToolsProvided**: List of key tools for Marketplace documentation
+- **Category**: Service categorization (communication, database, cloud, dev, search)
+- **ToolsProvided**: List of key tools this service provides
 
 **Key Functions:**
 - `BigFiveManifest()` - Returns pre-configured Big 5 services
@@ -175,9 +175,9 @@ Secrets are injected into subprocess environment, not exposed to parent process:
 
 ```go
 envVars := map[string]string{
-    "SLACK_BOT_TOKEN": os.Getenv("SLACK_BOT_TOKEN"),      // From AWS Secrets Manager
-    "DATABASE_URL":    os.Getenv("DATABASE_URL"),         // From Vault
-    "API_KEY":         os.Getenv("OPENAI_API_KEY"),       // From .env file
+    "SLACK_BOT_TOKEN": os.Getenv("SLACK_BOT_TOKEN"),      // From environment
+    "DATABASE_URL":    os.Getenv("DATABASE_URL"),         // From environment
+    "API_KEY":         os.Getenv("OPENAI_API_KEY"),       // From environment
 }
 
 server := mcpbridge.NewMCPServer("slack", cmd, args, envVars, logger)
@@ -185,10 +185,10 @@ server := mcpbridge.NewMCPServer("slack", cmd, args, envVars, logger)
 ```
 
 **Best Practices:**
-- Load secrets from AWS Secrets Manager / HashiCorp Vault in production
-- Never log environment variables (checked before Start())
-- Use separate service accounts for each MCP server
-- Implement secret rotation without restarting if possible
+- Use environment variables for API keys and secrets
+- Never log sensitive credentials
+- Use separate API keys for different services when possible
+- Validate environment variables before starting services
 
 ## Protocol: JSON-RPC 2.0
 
@@ -326,19 +326,14 @@ enabled := map[string]bool{"my-service": true}
 mcpbridge.StartFromManifest(bridge, customManifest, enabled, logger)
 ```
 
-## Marketplace UI Integration
+## Service Configuration
 
-The manifest system is designed so the ClawHost Marketplace UI can:
-
-1. **Display Services**: Call `ListServices(manifest)` to group by category
-2. **Show Toggle Buttons**: Each service → checkbox (enabled/disabled)
-3. **Validate Config**: Call `ValidateManifest(manifest, enabled)` to show missing env vars
-4. **Start Bridge**: Pass enabled map to `StartFromManifest()`
+You can easily toggle services using the manifest system:
 
 **Config File Pattern** (`config.example.yaml`):
 ```yaml
 bridge:
-  name: "OpenClaw-Bridge"
+  name: "MCP-Bridge"
   
 services:
   github:
@@ -353,7 +348,7 @@ services:
     enabled: true
 ```
 
-This allows customers to toggle services without code or restart.
+This allows you to toggle services without code changes or restart.
 
 ## Monitoring & Observability
 
@@ -371,54 +366,7 @@ Export metrics:
 - Request latencies (histogram)
 - Process exit codes and stderr logs
 
-## Production Deployment
 
-### Docker Example
-```dockerfile
-FROM golang:1.23 AS builder
-WORKDIR /app
-COPY . .
-RUN cd mcp-bridge && go build -o /app/bridge ./examples
-
-FROM ubuntu:24.04
-COPY --from=builder /app/bridge /app/bridge
-# Install Node.js and npm for MCP servers
-RUN apt-get update && apt-get install -y nodejs npm
-# Copy .npmrc with private package tokens (if needed)
-CMD ["/app/bridge"]
-```
-
-### Kubernetes Deployment
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: openclaw-bridge
-spec:
-  containers:
-  - name: bridge
-    image: myregistry/openclaw-bridge:latest
-    env:
-    - name: SLACK_BOT_TOKEN
-      valueFrom:
-        secretKeyRef:
-          name: mcp-secrets
-          key: slack_bot_token
-    - name: DATABASE_URL
-      valueFrom:
-        secretKeyRef:
-          name: mcp-secrets
-          key: database_url
-    ports:
-    - containerPort: 8080
-      name: http
-    livenessProbe:
-      httpGet:
-        path: /health
-        port: 8080
-      initialDelaySeconds: 5
-      periodSeconds: 10
-```
 
 ## Troubleshooting
 
@@ -446,4 +394,4 @@ WARN tool_name_collision tool=query servers=["slack","postgres"]
 
 ## License
 
-Part of ClawHost - Managed OpenClaw AI Hosting Platform
+Open Source - MIT License
