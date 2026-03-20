@@ -78,7 +78,11 @@ write_files:
         rm /tmp/go.tar.gz
       fi
       export PATH="$GO_DIR/bin:$PATH"
+      export GOPATH="/root/go"
+      export GOMODCACHE="/root/go/pkg/mod"
+      mkdir -p "$GOPATH"
       echo "export PATH=/usr/local/go/bin:\$PATH" >> /etc/profile.d/golang.sh
+      echo "export GOPATH=/root/go" >> /etc/profile.d/golang.sh
 
       # -----------------------------------------------------------------------
       # 4. Clone & build ClawHost
