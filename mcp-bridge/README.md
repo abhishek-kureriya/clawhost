@@ -2,6 +2,18 @@
 
 A production-grade Go package for managing multiple [Model Context Protocol (MCP)](https://modelcontextprotocol.io) servers and routing AI agent requests to the correct subprocess.
 
+## 🚀 The "Big 5" Services (Ready-to-Use)
+
+The MCP Bridge comes pre-configured with the 5 most popular services. Customers can toggle these in the Marketplace UI:
+
+| Service | Category | Core Tools | Required Env Var |
+|---------|----------|-----------|------------------|
+| **GitHub** | Development | `search_code`, `create_pull_request`, `list_issues` | `GITHUB_PERSONAL_ACCESS_TOKEN` |
+| **Slack** | Communication | `list_channels`, `post_message`, `reply_to_thread` | `SLACK_BOT_TOKEN` |
+| **PostgreSQL** | Database | `query`, `list_tables`, `describe_table` | `PG_CONNECTION_STRING` |
+| **Google Drive** | Cloud | `list_files`, `read_file`, `search_files` | `GOOGLE_CREDENTIALS_JSON` *(optional)* |
+| **Tavily (Web)** | Search | `search`, `get_search_context` | `TAVILY_API_KEY` *(optional)* |
+
 ## Features
 
 ✅ **Server Lifecycle Manager** - Start, stop, and monitor MCP subprocesses with health tracking
@@ -12,6 +24,53 @@ A production-grade Go package for managing multiple [Model Context Protocol (MCP
 ✅ **Context-Based Timeouts** - Prevent deadlocks with context cancellation
 
 ## Architecture
+
+### The "Universal Plug" Pattern
+
+The MCP Bridge is fundamentally **service-agnostic**. It acts as a universal orchestrator that:
+1. **Spawns** any MCP server subprocess
+2. **Routes** JSON-RPC requests to the correct server
+3. **Aggregates** tools from all servers into a single LLM-friendly interface
+4. **Manages** lifecycle, health, and concurrency
+
+This "Universal Plug" design means customers can integrate *any* MCP-compatible service without code changes.
+
+### Service Manifest System (manifest.go)
+
+The `ServiceManifest` defines how MCP servers are spawned and configured. This is what powers the **Marketplace UI toggles**:
+
+```go
+// Load pre-configured Big 5 services
+manifest := mcp.BigFiveManifest()
+
+// Define which services are enabled (toggled in UI)
+enabled := map[string]bool{
+    "github":       true,
+    "slack":        true,
+    "postgres":     true,
+    "google-drive": false,  // User didn't enable this
+    "tavily":       true,
+}
+
+// Validate environment variables are present
+missing := mcp.ValidateManifest(manifest, enabled)
+
+// Start only enabled services
+mcp.StartFromManifest(bridge, manifest, enabled, logger)
+```
+
+#### Each ServiceConfig includes:
+- **Command & Args**: How to spawn the MCP server (e.g., `npx @slack/mcp-server-slack`)
+- **EnvVars**: Required environment variables
+- **Optional flag**: Whether the service can be skipped if env vars are missing
+- **Category**: For Marketplace UI grouping (communication, database, cloud, dev, search)
+- **ToolsProvided**: List of key tools for Marketplace documentation
+
+**Key Functions:**
+- `BigFiveManifest()` - Returns pre-configured Big 5 services
+- `StartFromManifest()` - Initialize bridge from manifest + enabled services
+- `ValidateManifest()` - Check for missing environment variables
+- `ListServices()` - Group services by category for UI
 
 ### Components
 
@@ -236,6 +295,65 @@ Run unit tests:
 ```bash
 go test -v ./...
 ```
+
+## Extending with Custom Services
+
+The Bridge is designed to support *any* MCP-compatible service. To add a custom service:
+
+```go
+// Create your custom manifest
+customManifest := &mcpbridge.ServiceManifest{
+    Services: map[string]*mcpbridge.ServiceConfig{
+        "my-service": {
+            Name:        "my-service",
+            DisplayName: "My Custom Service",
+            Description: "Custom MCP server for internal use",
+            Command:     "/opt/services/my-service",
+            Args:        []string{"--config", "/etc/my-service.yaml"},
+            EnvVars:     []string{"MY_SERVICE_API_KEY"},
+            Optional:    false,
+            Category:    "custom",
+            ToolsProvided: []string{
+                "my_tool_1",
+                "my_tool_2",
+            },
+        },
+    },
+}
+
+// Use it with the bridge
+enabled := map[string]bool{"my-service": true}
+mcpbridge.StartFromManifest(bridge, customManifest, enabled, logger)
+```
+
+## Marketplace UI Integration
+
+The manifest system is designed so the ClawHost Marketplace UI can:
+
+1. **Display Services**: Call `ListServices(manifest)` to group by category
+2. **Show Toggle Buttons**: Each service → checkbox (enabled/disabled)
+3. **Validate Config**: Call `ValidateManifest(manifest, enabled)` to show missing env vars
+4. **Start Bridge**: Pass enabled map to `StartFromManifest()`
+
+**Config File Pattern** (`config.example.yaml`):
+```yaml
+bridge:
+  name: "OpenClaw-Bridge"
+  
+services:
+  github:
+    enabled: true
+  slack:
+    enabled: true
+  postgres:
+    enabled: true
+  google-drive:
+    enabled: false
+  tavily:
+    enabled: true
+```
+
+This allows customers to toggle services without code or restart.
 
 ## Monitoring & Observability
 

@@ -1,0 +1,38 @@
+# Bridge Service Configuration
+# This is how the ClawHost Marketplace UI will toggle MCP services on/off
+# Each customer can customize their bridge based on their needs
+
+bridge:
+  name: "OpenClaw-Bridge"
+  version: "1.0.0"
+  
+services:
+  github:
+    enabled: true
+    description: "Code repository management"
+    
+  slack:
+    enabled: true
+    description: "Team messaging and channels"
+    
+  postgres:
+    enabled: true
+    description: "Database queries and analysis"
+    
+  google-drive:
+    enabled: false
+    description: "File storage and documents"
+    environment:
+      GOOGLE_CREDENTIALS_JSON: "${VAULT:google-creds}"
+    
+  tavily:
+    enabled: true
+    description: "Real-time web search"
+    environment:
+      TAVILY_API_KEY: "${VAULT:tavily-key}"
+
+# Environment variables can reference:
+# - ${ENV:VAR_NAME} - Direct environment variable
+# - ${VAULT:key-name} - HashiCorp Vault secret
+# - ${AWS_SECRETS:secret-name} - AWS Secrets Manager
+# - ${K8S:namespace/secret-name} - Kubernetes secret
