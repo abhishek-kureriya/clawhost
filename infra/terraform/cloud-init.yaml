@@ -19,7 +19,7 @@ packages:
   - htop
 
 write_files:
-  - path: /opt/clawhost/app/infra/nginx/nginx.conf
+  - path: /opt/clawhost/nginx.conf.staging
     permissions: "0644"
     content: |
       upstream core_api { server host.docker.internal:8080; }
@@ -137,6 +137,9 @@ write_files:
       else
         git clone "$REPO_URL" "$INSTALL_DIR"
       fi
+      # Move staged nginx.conf into place
+      mkdir -p "$INSTALL_DIR/infra/nginx"
+      cp /opt/clawhost/nginx.conf.staging "$INSTALL_DIR/infra/nginx/nginx.conf"
       cd "$INSTALL_DIR/core"
       /usr/local/go/bin/go mod download
       /usr/local/go/bin/go build -o /usr/local/bin/clawhost-core ./cmd
